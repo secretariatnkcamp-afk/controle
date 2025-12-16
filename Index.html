@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grille de Contrôle Opérationnel</title>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabaseUrl = 'https://bcwbyugpjlwrpvbbgajg.supabase.co'
+const supabaseKey = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
+const supabase = createClient(supabaseUrl, supabaseKey)
+</script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; background: #f2f4f8; padding: 15px; }
+.container { background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden; }
+.header { background: #5b6cff; color: white; padding: 20px; text-align: center; }
+.controls { padding: 15px; display: flex; gap: 10px; flex-wrap: wrap; background: #f8f9fa; }
+button { padding: 10px 18px; border: none; border-radius: 6px; background: #5b6cff; color: white; font-weight: bold; cursor: pointer; }
+button:hover { opacity: 0.9; }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+.table-container { padding: 15px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border: 1px solid #ddd; padding: 10px; vertical-align: top; }
+th { background: #5b6cff; color: white; }
+.process-header td { background: #e9f0ff; font-weight: bold; }
+.status-badge { padding: 6px 14px; border-radius: 20px; font-weight: bold; cursor: pointer; display: inline-block; touch-action: manipulation; }
+.status-ok { background: #d4edda; color: #155724; }
+.status-ko { background: #f8d7da; color: #721c24; }
+.comment-icon { cursor: pointer; font-size: 18px; touch-action: manipulation; }
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); }
+.modal-content { background: white; max-width: 500px; margin: 15% auto; padding: 20px; border-radius: 10px; }
+textarea { width: 100%; min-height: 120px; margin-top: 10px; }
+.loading { text-align: center; padding: 40px; color: #666; }
+.error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 6px; margin: 15px; }
+.save-indicator { display: inline-block; margin-left: 10px; font-size: 12px; color: #666; }
+.save-indicator.saving { color: #ffc107; }
+.save-indicator.saved { color: #28a745; }
+.save-indicator.error { color: #dc3545; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>Grille de Contrôle Opérationnel</h2>
+        <p>Version interactive – PC & Mobile</p>
+        <span class="save-indicator" id="saveIndicator"></span>
+    </div>
+
+    <div class="controls">
+        <button onclick="exportExcel()">📥 Export Excel</button>
+    </div>
+
+    <div id="errorContainer"></div>
+
+    <div class="table-container">
+        <div id="loadingIndicator" class="loading">Chargement des données...</div>
+        <table id="controlTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Processus / Contrôle</th>
+                    <th>Description</th>
+                    <th>Responsable</th>
+                    <th>Statut</th>
+                    <th>Commentaires</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL COMMENTAIRE -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3>Commentaire</h3>
+        <textarea id="commentText"></textarea><br><br>
+        <button onclick="saveComment()">Enregistrer</button>
+        <button onclick="closeModal()" style="background:#999;">Fermer</button>
+    </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+const supabaseUrl = 'https://bcwbyugpjlwrpvbbgajg.supabase.co'
+const supabaseKey = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+let controles = []
+let currentControleId = null
+
+async function loadData() {
+    try {
+        const { data, error } = await supabase.from('controles').select('*')
+        if (error) throw error
+        controles = data
+        renderTable()
+        document.getElementById('loadingIndicator').style.display = 'none'
+        document.getElementById('controlTable').style.display = 'table'
+        document.getElementById('errorContainer').innerHTML = ''
+    } catch (err) {
+        console.error(err)
+        document.getElementById('loadingIndicator').style.display = 'none'
+        document.getElementById('errorContainer').innerHTML =
+            '<div class="error">Impossible de charger les données. Vérifiez la base Supabase.</div>'
+    }
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tableBody')
+    tbody.innerHTML = ''
+    let currentProcess = ''
+    controles.forEach(ctrl => {
+        if (ctrl.processus !== currentProcess) {
+            currentProcess = ctrl.processus
+            const headerRow = document.createElement('tr')
+            headerRow.className = 'process-header'
+            headerRow.innerHTML = `<td colspan="5">${currentProcess} – Responsable : ${ctrl.responsable}</td>`
+            tbody.appendChild(headerRow)
+        }
+        const row = document.createElement('tr')
+        row.dataset.id = ctrl.id
+        row.dataset.statut = ctrl.statut
+        const isOk = ctrl.statut === '✔️'
+        const statusClass = isOk ? 'status-ok' : 'status-ko'
+        const commentPreview = ctrl.commentaire ? (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0,40)+'...' : ctrl.commentaire) : ''
+        row.innerHTML = `
+            <td>${ctrl.controle}</td>
+            <td>${ctrl.description}</td>
+            <td>${ctrl.responsable}</td>
+            <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut}</span></td>
+            <td><span class="comment-icon" onclick="openComment('${ctrl.id}')">💬</span> <span class="comment-preview">${commentPreview}</span></td>
+        `
+        tbody.appendChild(row)
+    })
+}
+
+// Fonctions exposées globalement pour le HTML
+window.toggleStatus = async function(id) {
+    const ctrl = controles.find(c => c.id === id)
+    if (!ctrl) return
+    ctrl.statut = ctrl.statut === '❌' ? '✔️' : '❌'
+    renderTable()
+    await saveControle(ctrl)
+}
+
+window.openComment = function(id) {
+    currentControleId = id
+    const ctrl = controles.find(c => c.id === id)
+    document.getElementById('commentText').value = ctrl ? ctrl.commentaire || '' : ''
+    document.getElementById('modal').style.display = 'block'
+}
+
+window.closeModal = function() {
+    document.getElementById('modal').style.display = 'none'
+    currentControleId = null
+}
+
+window.saveComment = async function() {
+    if (currentControleId === null) return
+    const ctrl = controles.find(c => c.id === currentControleId)
+    if (!ctrl) return
+    ctrl.commentaire = document.getElementById('commentText').value
+    renderTable()
+    closeModal()
+    await saveControle(ctrl)
+}
+
+async function saveControle(ctrl) {
+    const indicator = document.getElementById('saveIndicator')
+    indicator.textContent = '⏳ Sauvegarde...'
+    indicator.className = 'save-indicator saving'
+    try {
+        const { error } = await supabase.from('controles').update({
+            statut: ctrl.statut,
+            commentaire: ctrl.commentaire
+        }).eq('id', ctrl.id)
+        if (error) throw error
+        indicator.textContent = '✓ Sauvegardé'
+        indicator.className = 'save-indicator saved'
+        setTimeout(() => { indicator.textContent = '' }, 2000)
+    } catch (err) {
+        console.error(err)
+        indicator.textContent = '⚠ Erreur'
+        indicator.className = 'save-indicator error'
+    }
+}
+
+window.exportExcel = function() {
+    const wb = XLSX.utils.table_to_book(
+        document.getElementById('controlTable'),
+        { sheet: "Contrôles" }
+    )
+    XLSX.writeFile(wb, "grille_controle_operationnel.xlsx")
+}
+
+document.addEventListener('DOMContentLoaded', loadData)
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</body>
+</html>
