@@ -1,441 +1,84 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Test Supabase</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 { color: #333; }
-        .btn {
-            padding: 10px 20px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .btn:hover { background: #2563eb; }
-        .btn-success { background: #10b981; }
-        .btn-danger { background: #ef4444; }
-        .status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-        }
-        .success { background: #d1fae5; color: #065f46; }
-        .error { background: #fee2e2; color: #991b1b; }
-        .info { background: #dbeafe; color: #1e40af; }
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        .data-table th, .data-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .data-table th {
-            background: #3b82f6;
-            color: white;
-        }
-        .data-table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-        code {
-            background: #f1f1f1;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-    </style>
+    <title>Test Supabase Simple</title>
 </head>
 <body>
-    <div class="container">
-        <h1>🔧 Test Connexion Supabase</h1>
-        
-        <div class="status info" id="status">
-            Prêt à tester la connexion...
-        </div>
-        
-        <div>
-            <button class="btn" onclick="testConnection()">🔗 Tester la connexion</button>
-            <button class="btn" onclick="createTables()">📊 Créer les tables</button>
-            <button class="btn" onclick="addSampleData()">➕ Ajouter données test</button>
-            <button class="btn btn-success" onclick="loadData()">📥 Charger données</button>
-            <button class="btn btn-danger" onclick="clearData()">🗑️ Effacer données test</button>
-        </div>
-        
-        <h3>Informations de connexion :</h3>
-        <p><strong>URL :</strong> <code>https://bcwbyugpjlwrpvbbgajg.supabase.co</code></p>
-        <p><strong>Clé publique :</strong> <code>sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60</code></p>
-        
-        <div id="results"></div>
-        
-        <h3>Données de la table "controles" :</h3>
-        <div id="dataContainer">
-            <p>Aucune donnée chargée</p>
-        </div>
-        
-        <h3>Logs :</h3>
-        <div id="logs" style="background: #f1f1f1; padding: 10px; border-radius: 5px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;">
-        </div>
-    </div>
-
+    <h1>Test Supabase</h1>
+    
+    <button onclick="test()">Tester Connexion</button>
+    <button onclick="creerTables()">Créer Tables</button>
+    
+    <div id="resultat" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+    
     <script>
-        // Configuration
         const SUPABASE_URL = 'https://bcwbyugpjlwrpvbbgajg.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60';
+        const SUPABASE_KEY = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60';
         
-        let supabase = null;
-        
-        // Initialisation
-        function init() {
-            try {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                log('Client Supabase initialisé');
-                updateStatus('🟢 Client Supabase initialisé', 'success');
-            } catch (error) {
-                log('❌ Erreur initialisation: ' + error.message);
-                updateStatus('❌ Erreur initialisation', 'error');
-            }
-        }
-        
-        // Tester la connexion
-        async function testConnection() {
-            log('Test de connexion...');
-            updateStatus('⏳ Test de connexion en cours...', 'info');
+        async function test() {
+            document.getElementById('resultat').innerHTML = "Test en cours...";
             
             try {
-                // Test simple - on essaye de lister les tables
+                // Créer le client
+                const { createClient } = window.supabase;
+                const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+                
+                // Tester avec une requête simple
                 const { data, error } = await supabase
                     .from('controles')
-                    .select('count')
+                    .select('*')
                     .limit(1);
                 
                 if (error) {
-                    if (error.message.includes('does not exist')) {
-                        updateStatus('⚠️ Connexion OK mais table "controles" n\'existe pas', 'info');
-                        log('Table "controles" non trouvée - il faut la créer');
-                    } else {
-                        updateStatus('❌ Erreur: ' + error.message, 'error');
-                        log('Erreur détaillée: ' + JSON.stringify(error));
-                    }
+                    document.getElementById('resultat').innerHTML = 
+                        "ERREUR: " + error.message + "<br><br>" +
+                        "Code: " + error.code + "<br>" +
+                        "Détails: " + JSON.stringify(error.details) + "<br>" +
+                        "Hint: " + error.hint;
                 } else {
-                    updateStatus('✅ Connexion réussie à Supabase!', 'success');
-                    log('Connexion réussie!');
+                    document.getElementById('resultat').innerHTML = 
+                        "SUCCÈS! Connecté à Supabase.<br>" +
+                        "Données: " + JSON.stringify(data);
                 }
-            } catch (error) {
-                updateStatus('❌ Erreur connexion: ' + error.message, 'error');
-                log('Exception: ' + error.message);
+            } catch (err) {
+                document.getElementById('resultat').innerHTML = 
+                    "EXCEPTION: " + err.message + "<br><br>" +
+                    "Stack: " + err.stack;
             }
         }
         
-        // Créer les tables
-        async function createTables() {
-            log('Création des tables...');
-            updateStatus('⏳ Création des tables...', 'info');
-            
-            try {
-                // Créer la table processus
-                const { error: error1 } = await supabase.rpc('exec_sql', {
-                    sql: `
-                        CREATE TABLE IF NOT EXISTS processus (
-                            id BIGSERIAL PRIMARY KEY,
-                            nom TEXT UNIQUE NOT NULL,
-                            created_at TIMESTAMP DEFAULT NOW()
-                        );
-                    `
-                }).catch(async () => {
-                    // Si la RPC n'existe pas, on essaie directement
-                    const { error } = await supabase
-                        .from('processus')
-                        .select('count')
-                        .limit(1);
-                    
-                    if (error && error.message.includes('does not exist')) {
-                        log('Table "processus" n\'existe pas - création nécessaire');
-                        return { error: new Error('Table manquante') };
-                    }
-                    return { error: null };
-                });
-                
-                // Créer la table controles
-                const { error: error2 } = await supabase.rpc('exec_sql', {
-                    sql: `
-                        CREATE TABLE IF NOT EXISTS controles (
-                            id TEXT PRIMARY KEY,
-                            processus TEXT NOT NULL,
-                            controle TEXT NOT NULL,
-                            description TEXT,
-                            responsable TEXT NOT NULL,
-                            frequence TEXT NOT NULL,
-                            statut TEXT DEFAULT '❌',
-                            commentaire TEXT,
-                            date_verification TEXT,
-                            created_at TIMESTAMP DEFAULT NOW()
-                        );
-                    `
-                }).catch(async () => {
-                    const { error } = await supabase
-                        .from('controles')
-                        .select('count')
-                        .limit(1);
-                    
-                    if (error && error.message.includes('does not exist')) {
-                        log('Table "controles" n\'existe pas - création nécessaire');
-                        return { error: new Error('Table manquante') };
-                    }
-                    return { error: null };
-                });
-                
-                // Désactiver RLS (Row Level Security)
-                const { error: error3 } = await supabase.rpc('exec_sql', {
-                    sql: `
-                        ALTER TABLE processus DISABLE ROW LEVEL SECURITY;
-                        ALTER TABLE controles DISABLE ROW LEVEL SECURITY;
-                    `
-                }).catch(() => {
-                    log('Note: RPC exec_sql non disponible - RLS à désactiver manuellement');
-                    return { error: null };
-                });
-                
-                log('Instructions de création envoyées');
-                updateStatus('✅ Instructions de création envoyées. Vérifiez dans Supabase SQL Editor.', 'success');
-                
-                // Afficher le code SQL à exécuter
-                document.getElementById('results').innerHTML = `
-                    <div class="status info">
-                        <h4>Exécutez ce code dans SQL Editor de Supabase :</h4>
-                        <pre style="background: #f1f1f1; padding: 10px; border-radius: 5px; overflow-x: auto;">
--- Créer les tables
-CREATE TABLE IF NOT EXISTS processus (
-    id BIGSERIAL PRIMARY KEY,
-    nom TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS controles (
-    id TEXT PRIMARY KEY,
-    processus TEXT NOT NULL,
-    controle TEXT NOT NULL,
-    description TEXT,
-    responsable TEXT NOT NULL,
-    frequence TEXT NOT NULL,
-    statut TEXT DEFAULT '❌',
-    commentaire TEXT,
-    date_verification TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Désactiver RLS (permissions)
-ALTER TABLE processus DISABLE ROW LEVEL SECURITY;
-ALTER TABLE controles DISABLE ROW LEVEL SECURITY;</pre>
-                        <p><strong>Instructions :</strong></p>
-                        <ol>
-                            <li>Allez dans Supabase → SQL Editor</li>
-                            <li>Copiez-collez le code ci-dessus</li>
-                            <li>Cliquez sur "Run"</li>
-                            <li>Revenez ici et cliquez sur "Tester la connexion"</li>
-                        </ol>
-                    </div>
-                `;
-                
-            } catch (error) {
-                log('Erreur création tables: ' + error.message);
-                updateStatus('❌ Erreur: ' + error.message, 'error');
-            }
+        async function creerTables() {
+            document.getElementById('resultat').innerHTML = 
+                "Pour créer les tables, allez dans Supabase → SQL Editor<br>" +
+                "et exécutez ce code :<br><br>" +
+                "<pre style='background:#f0f0f0;padding:10px;'>" +
+                "CREATE TABLE IF NOT EXISTS controles (\n" +
+                "    id TEXT PRIMARY KEY,\n" +
+                "    processus TEXT NOT NULL,\n" +
+                "    controle TEXT NOT NULL,\n" +
+                "    description TEXT,\n" +
+                "    responsable TEXT NOT NULL,\n" +
+                "    frequence TEXT NOT NULL,\n" +
+                "    statut TEXT DEFAULT '❌',\n" +
+                "    commentaire TEXT,\n" +
+                "    date_verification TEXT\n" +
+                ");\n\n" +
+                "CREATE TABLE IF NOT EXISTS processus (\n" +
+                "    id SERIAL PRIMARY KEY,\n" +
+                "    nom TEXT UNIQUE NOT NULL\n" +
+                ");\n\n" +
+                "-- Désactiver RLS (permissions)\n" +
+                "ALTER TABLE controles DISABLE ROW LEVEL SECURITY;\n" +
+                "ALTER TABLE processus DISABLE ROW LEVEL SECURITY;</pre>";
         }
         
-        // Ajouter des données de test
-        async function addSampleData() {
-            log('Ajout données test...');
-            
-            try {
-                // Ajouter quelques processus
-                const processusData = [
-                    { nom: 'Cycle Achats-Fournisseurs' },
-                    { nom: 'Cycle Ventes-Clients' },
-                    { nom: 'Cycle Trésorerie' }
-                ];
-                
-                for (const proc of processusData) {
-                    const { error } = await supabase
-                        .from('processus')
-                        .upsert(proc, { onConflict: 'nom' });
-                    
-                    if (error) log('Erreur processus ' + proc.nom + ': ' + error.message);
-                }
-                
-                // Ajouter des contrôles
-                const controlesData = [
-                    {
-                        id: 'test1',
-                        processus: 'Cycle Achats-Fournisseurs',
-                        controle: 'Émission Bon de Commande',
-                        description: 'Vérifier validation selon seuils',
-                        responsable: 'Sophie Martin',
-                        frequence: 'Systématique',
-                        statut: '✔️',
-                        commentaire: 'Procédure bien suivie',
-                        date_verification: '2024-01-15'
-                    },
-                    {
-                        id: 'test2',
-                        processus: 'Cycle Achats-Fournisseurs',
-                        controle: 'Réception marchandises',
-                        description: 'Contrôle qualité à la réception',
-                        responsable: 'Pierre Dubois',
-                        frequence: 'Quotidien',
-                        statut: '❌',
-                        commentaire: 'Manque de personnel',
-                        date_verification: '2024-01-10'
-                    },
-                    {
-                        id: 'test3',
-                        processus: 'Cycle Ventes-Clients',
-                        controle: 'Facturation',
-                        description: 'Vérifier concordance livraison/facturation',
-                        responsable: 'Marie Laurent',
-                        frequence: 'Hebdomadaire',
-                        statut: '…',
-                        commentaire: 'En cours d\'analyse',
-                        date_verification: '2024-01-12'
-                    }
-                ];
-                
-                for (const ctrl of controlesData) {
-                    const { error } = await supabase
-                        .from('controles')
-                        .upsert(ctrl, { onConflict: 'id' });
-                    
-                    if (error) log('Erreur contrôle ' + ctrl.id + ': ' + error.message);
-                }
-                
-                log('Données test ajoutées');
-                updateStatus('✅ Données test ajoutées', 'success');
-                
-                // Recharger les données
-                await loadData();
-                
-            } catch (error) {
-                log('Erreur ajout données: ' + error.message);
-                updateStatus('❌ Erreur: ' + error.message, 'error');
-            }
-        }
-        
-        // Charger les données
-        async function loadData() {
-            log('Chargement données...');
-            
-            try {
-                // Charger les contrôles
-                const { data: controles, error } = await supabase
-                    .from('controles')
-                    .select('*')
-                    .order('processus', { ascending: true });
-                
-                if (error) {
-                    log('Erreur chargement: ' + error.message);
-                    updateStatus('❌ Erreur chargement: ' + error.message, 'error');
-                    return;
-                }
-                
-                // Afficher les données
-                if (controles && controles.length > 0) {
-                    let html = '<table class="data-table">';
-                    html += '<tr><th>ID</th><th>Processus</th><th>Contrôle</th><th>Responsable</th><th>Statut</th></tr>';
-                    
-                    controles.forEach(item => {
-                        html += `<tr>
-                            <td>${item.id}</td>
-                            <td>${item.processus || ''}</td>
-                            <td>${item.controle || ''}</td>
-                            <td>${item.responsable || ''}</td>
-                            <td>${item.statut || ''}</td>
-                        </tr>`;
-                    });
-                    
-                    html += '</table>';
-                    html += `<p><strong>Total :</strong> ${controles.length} contrôle(s)</p>`;
-                    
-                    document.getElementById('dataContainer').innerHTML = html;
-                    log(`${controles.length} contrôle(s) chargé(s)`);
-                    updateStatus(`✅ ${controles.length} contrôle(s) chargé(s)`, 'success');
-                } else {
-                    document.getElementById('dataContainer').innerHTML = 
-                        '<p class="status info">Aucune donnée dans la table "controles"</p>';
-                    log('Table "controles" vide');
-                    updateStatus('📭 Table "controles" vide', 'info');
-                }
-                
-            } catch (error) {
-                log('Erreur: ' + error.message);
-                updateStatus('❌ Erreur: ' + error.message, 'error');
-            }
-        }
-        
-        // Effacer les données test
-        async function clearData() {
-            if (!confirm('Effacer toutes les données de test ?')) return;
-            
-            log('Effacement données test...');
-            
-            try {
-                const { error: error1 } = await supabase
-                    .from('controles')
-                    .delete()
-                    .like('id', 'test%');
-                
-                const { error: error2 } = await supabase
-                    .from('processus')
-                    .delete()
-                    .in('nom', ['Cycle Achats-Fournisseurs', 'Cycle Ventes-Clients', 'Cycle Trésorerie']);
-                
-                if (error1) log('Erreur effacement contrôles: ' + error1.message);
-                if (error2) log('Erreur effacement processus: ' + error2.message);
-                
-                log('Données test effacées');
-                updateStatus('🗑️ Données test effacées', 'info');
-                
-                // Recharger
-                await loadData();
-                
-            } catch (error) {
-                log('Erreur effacement: ' + error.message);
-            }
-        }
-        
-        // Fonctions utilitaires
-        function updateStatus(message, type) {
-            const statusEl = document.getElementById('status');
-            statusEl.textContent = message;
-            statusEl.className = 'status ' + type;
-        }
-        
-        function log(message) {
-            const logsEl = document.getElementById('logs');
-            const time = new Date().toLocaleTimeString();
-            logsEl.innerHTML = `[${time}] ${message}<br>` + logsEl.innerHTML;
-        }
-        
-        // Initialiser au chargement
-        document.addEventListener('DOMContentLoaded', init);
+        // Charger Supabase JS
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.onload = function() {
+            document.getElementById('resultat').innerHTML = "Supabase JS chargé!";
+        };
+        document.head.appendChild(script);
     </script>
 </body>
 </html>
