@@ -1,356 +1,654 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>Gestion des contrôles</title>
-    <!-- Remplacez SUPABASE_URL et SUPABASE_ANON_KEY par les vôtres -->
-    <script>
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    </script>
-    <!-- Supabase JS SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Grille de Contrôle Opérationnel - Supabase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px; min-height:100vh;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        .container {
+            max-width: 1800px; margin:0 auto; background:white; border-radius:15px;
+            box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden;
         }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: left;
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color:white; padding:30px; text-align:center; position:relative;
         }
-        th {
-            background-color: #f2f2f2;
+        .header h1 { font-size:28px; margin-bottom:10px; }
+        .header p { font-size:14px; opacity:0.9; }
+        .save-indicator { position:absolute; top:20px; right:30px; padding:8px 16px;
+            border-radius:20px; font-size:13px; font-weight:600; background:rgba(255,255,255,0.2);
         }
-        .action-btn {
-            margin-right: 5px;
-            cursor: pointer;
+        .save-indicator.saving { background:#ffc107; color:#000; }
+        .save-indicator.saved { background:#28a745; color:white; }
+        .save-indicator.error { background:#dc3545; color:white; }
+
+        .controls { padding:20px 30px; background:#f8f9fa; border-bottom:2px solid #e9ecef;
+            display:flex; gap:15px; flex-wrap:wrap; align-items:center;
         }
-        .edit-btn { color: blue; }
-        .delete-btn { color: red; }
-        .status-btn {
-            font-size: 16px;
-            padding: 4px 8px;
-            border: none;
-            background: none;
-            cursor: pointer;
+        .btn { padding:12px 24px; border:none; border-radius:8px; cursor:pointer;
+            font-size:14px; font-weight:600; transition:all 0.3s; display:flex; align-items:center; gap:8px;
         }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1;
-            left: 0; top: 0;
-            width: 100%; height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+        .btn-primary { background:#667eea; color:white; }
+        .btn-primary:hover { background:#5568d3; transform:translateY(-2px); box-shadow:0 5px 15px rgba(102,126,234,0.4); }
+        .btn-success { background:#28a745; color:white; }
+        .btn-warning { background:#ffc107; color:#000; }
+        .btn-danger { background:#dc3545; color:white; }
+        .btn-sm { padding:6px 12px; font-size:12px; }
+
+        .filter-group { display:flex; gap:10px; align-items:center; }
+        .filter-group select, .filter-group input {
+            padding:10px; border:2px solid #e9ecef; border-radius:8px; font-size:14px;
         }
-        .modal-content {
-            background-color: #fefefe;
-            margin: 5% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 50%;
+
+        .stats { padding:30px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px; background:#f8f9fa; }
+        .stat-card { background:white; padding:20px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); text-align:center; }
+        .stat-value { font-size:32px; font-weight:700; margin:10px 0; }
+        .stat-label { color:#6c757d; font-size:13px; }
+
+        .table-container { overflow-x:auto; padding:30px; }
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; position:sticky; top:0; z-index:10; }
+        th { padding:15px 10px; text-align:left; font-weight:600; border-right:1px solid rgba(255,255,255,0.2); font-size:13px; }
+        th:last-child { border-right:none; }
+        tbody tr { border-bottom:1px solid #e9ecef; }
+        tbody tr:hover { background:#f8f9fa; }
+        td { padding:12px 10px; vertical-align:top; border-right:1px solid #e9ecef; }
+        td:last-child { border-right:none; }
+
+        .process-header { background:#e7f3ff; font-weight:bold; font-size:14px; padding:15px !important; }
+        .control-row { background:white; }
+        .status-badge { display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.3s; }
+        .status-conforme { background:#d4edda; color:#155724; }
+        .status-non-conforme { background:#f8d7da; color:#721c24; }
+        .status-attente { background:#fff3cd; color:#856404; }
+        .comment-icon { cursor:pointer; color:#667eea; font-size:16px; margin-right:5px; }
+        .comment-preview { font-size:11px; color:#6c757d; font-style:italic; }
+        .process-status { font-weight:bold; font-size:13px; padding:8px 15px; border-radius:6px; display:inline-block; margin-left:15px; }
+        .process-conforme { background:#d4edda; color:#155724; }
+        .process-non-conforme { background:#f8d7da; color:#721c24; }
+
+        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); overflow-y:auto; }
+        .modal-content { background:white; margin:5% auto; padding:30px; border-radius:12px; width:90%; max-width:700px; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+        .modal-header { font-size:20px; font-weight:600; margin-bottom:20px; color:#667eea; }
+        .close { color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer; }
+        .close:hover { color:#000; }
+        .form-group { margin-bottom:20px; }
+        .form-group label { display:block; font-weight:600; margin-bottom:8px; color:#333; }
+        .form-group input, .form-group select, .form-group textarea { width:100%; padding:12px; border:2px solid #e9ecef; border-radius:8px; font-family:inherit; font-size:14px; }
+        .form-group textarea { resize:vertical; min-height:100px; }
+        .modal-footer { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
+        .loading { text-align:center; padding:40px; color:#666; }
+        .error { background:#f8d7da; color:#721c24; padding:15px; border-radius:6px; margin:15px; }
+        .action-buttons { display:flex; gap:5px; }
+        .empty-state { text-align:center; padding:60px 20px; color:#6c757d; }
+        .empty-state-icon { font-size:64px; margin-bottom:20px; }
+        .empty-state h3 { font-size:24px; margin-bottom:10px; }
+        
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            left: 30px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
         }
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        #addButton {
-            margin-bottom: 10px;
+        .connection-status.connected { background:#28a745; color:white; }
+        .connection-status.disconnected { background:#dc3545; color:white; }
+
+        @media (max-width:768px) {
+            .controls { flex-direction:column; align-items:stretch; }
+            .filter-group { flex-direction:column; width:100%; }
+            .filter-group select, .filter-group input { width:100%; }
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <div class="header">
+            <span class="connection-status" id="connectionStatus">⏳ Connexion...</span>
+            <h1>📊 Grille de Contrôle Opérationnel</h1>
+            <p>Système de gestion et de suivi des contrôles internes</p>
+            <span class="save-indicator" id="saveIndicator"></span>
+        </div>
 
-<h1>Gestion des contrôles</h1>
-<button id="addButton">Ajouter un contrôle</button>
-<table>
-    <thead>
-        <tr>
-            <th>Processus</th>
-            <th>Contrôle</th>
-            <th>Description</th>
-            <th>Responsable</th>
-            <th>Fréquence</th>
-            <th>Statut</th>
-            <th>Date de vérification</th>
-            <th>Commentaire</th>
-            <th>Ordre</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody id="controlsTableBody">
-        <!-- Les données seront insérées ici dynamiquement -->
-    </tbody>
-</table>
+        <div class="controls">
+            <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Nouveau Processus</button>
+            <button class="btn btn-primary" onclick="openAddControlModal()">➕ Nouveau Contrôle</button>
+            <button class="btn btn-success" onclick="exportToExcel()">📥 Export Excel</button>
+            <button class="btn btn-warning" onclick="toggleStats()">📈 Statistiques</button>
+            <div class="filter-group">
+                <input type="text" id="searchInput" placeholder="🔍 Rechercher..." oninput="filterTable()">
+                <select id="filterProcessus" onchange="filterTable()">
+                    <option value="">Tous les processus</option>
+                </select>
+                <select id="filterStatut" onchange="filterTable()">
+                    <option value="">Tous les statuts</option>
+                    <option value="✔️">Conforme</option>
+                    <option value="❌">Non conforme</option>
+                    <option value="…">En attente</option>
+                </select>
+            </div>
+        </div>
 
-<!-- Modal Ajout -->
-<div id="addModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeAddModal()">&times;</span>
-        <h2>Ajouter un contrôle</h2>
-        <form id="addForm">
-            <label>Processus:<br><input type="text" id="addProcessus" required></label><br>
-            <label>Contrôle:<br><input type="text" id="addControle" required></label><br>
-            <label>Description:<br><textarea id="addDescription" required></textarea></label><br>
-            <label>Responsable:<br><input type="text" id="addResponsable" required></label><br>
-            <label>Fréquence:<br><input type="text" id="addFrequence" required></label><br>
-            <label>Statut:<br><input type="text" id="addStatut" required></label><br>
-            <label>Date de vérification:<br><input type="date" id="addDateVerification"></label><br>
-            <label>Commentaire:<br><textarea id="addCommentaire"></textarea></label><br>
-            <label>Ordre:<br><input type="number" id="addOrdre" required></label><br><br>
-            <button type="button" onclick="addControl()">Enregistrer</button>
-        </form>
+        <div class="stats" id="statsSection" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-label">Total Processus</div>
+                <div class="stat-value" id="totalProcessus">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Contrôles</div>
+                <div class="stat-value" id="totalControles">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Contrôles Conformes</div>
+                <div class="stat-value" style="color:#28a745;" id="conformes">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Non Conformes</div>
+                <div class="stat-value" style="color:#dc3545;" id="nonConformes">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Taux de Conformité</div>
+                <div class="stat-value" style="color:#667eea;" id="tauxConformite">0%</div>
+            </div>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="table-container">
+            <div id="loadingIndicator" class="loading">⏳ Chargement des données...</div>
+            <div id="emptyState" class="empty-state" style="display:none;">
+                <div class="empty-state-icon">📋</div>
+                <h3>Aucun contrôle pour le moment</h3>
+                <p>Commencez par créer un nouveau processus ou un nouveau contrôle</p><br>
+                <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Créer un processus</button>
+            </div>
+
+            <table id="controlTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th style="width:180px;">Processus / Contrôle</th>
+                        <th style="width:200px;">Description</th>
+                        <th style="width:120px;">Responsable</th>
+                        <th style="width:100px;">Fréquence</th>
+                        <th style="width:100px;">Statut</th>
+                        <th style="width:100px;">Date Vérif.</th>
+                        <th style="width:200px;">Commentaires</th>
+                        <th style="width:120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
     </div>
-</div>
 
-<!-- Modal Édition -->
-<div id="editModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeEditModal()">&times;</span>
-        <h2>Modifier le contrôle</h2>
-        <form id="editForm">
-            <input type="hidden" id="editId">
-            <label>Processus:<br><input type="text" id="editProcessus" required></label><br>
-            <label>Contrôle:<br><input type="text" id="editControle" required></label><br>
-            <label>Description:<br><textarea id="editDescription" required></textarea></label><br>
-            <label>Responsable:<br><input type="text" id="editResponsable" required></label><br>
-            <label>Fréquence:<br><input type="text" id="editFrequence" required></label><br>
-            <label>Statut:<br><input type="text" id="editStatut" required></label><br>
-            <label>Date de vérification:<br><input type="date" id="editDateVerification"></label><br>
-            <label>Commentaire:<br><textarea id="editCommentaire"></textarea></label><br>
-            <label>Ordre:<br><input type="number" id="editOrdre" required></label><br><br>
-            <button type="button" onclick="updateControl()">Mettre à jour</button>
-        </form>
+    <!-- Modals -->
+    <div id="commentModal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content">
+            <span class="close" onclick="closeCommentModal()">&times;</span>
+            <div class="modal-header">💬 Commentaire</div>
+            <textarea id="commentText" placeholder="Entrez votre commentaire..." style="width:100%; min-height:120px; padding:12px; border-radius:8px; border:2px solid #e9ecef;"></textarea>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveComment()">Enregistrer</button>
+                <button class="btn" onclick="closeCommentModal()" style="background:#6c757d; color:white;">Annuler</button>
+            </div>
+        </div>
     </div>
-</div>
 
-<!-- Modal Commentaire -->
-<div id="commentModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeCommentModal()">&times;</span>
-        <h2>Modifier le commentaire</h2>
-        <form id="commentForm">
-            <input type="hidden" id="commentId">
-            <textarea id="commentText" rows="4" cols="50"></textarea><br><br>
-            <button type="button" onclick="updateComment()">Enregistrer</button>
-        </form>
+    <div id="addProcessModal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddProcessModal()">&times;</span>
+            <div class="modal-header">➕ Nouveau Processus</div>
+            <div class="form-group">
+                <label>Nom du Processus *</label>
+                <input type="text" id="processNom" placeholder="Ex: Cycle Achats-Fournisseurs">
+            </div>
+            <div class="form-group">
+                <label>Responsable du Processus</label>
+                <input type="text" id="processResponsable" placeholder="Ex: Pierre Durand">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveProcess()">Créer</button>
+                <button class="btn" onclick="closeAddProcessModal()" style="background:#6c757d; color:white;">Annuler</button>
+            </div>
+        </div>
     </div>
-</div>
 
-<script>
-    // Initialiser le client Supabase
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    <div id="addControlModal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddControlModal()">&times;</span>
+            <div class="modal-header" id="controlModalTitle">➕ Nouveau Contrôle</div>
+            <div class="form-group">
+                <label>Processus *</label>
+                <select id="controlProcessus">
+                    <option value="">Sélectionnez un processus</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nom du Contrôle *</label>
+                <input type="text" id="controlNom" placeholder="Ex: Émission Bon de Commande">
+            </div>
+            <div class="form-group">
+                <label>Description *</label>
+                <textarea id="controlDescription" placeholder="Description détaillée du contrôle..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Responsable *</label>
+                <input type="text" id="controlResponsable" placeholder="Ex: Sophie Martin">
+            </div>
+            <div class="form-group">
+                <label>Fréquence *</label>
+                <select id="controlFrequence">
+                    <option value="Quotidien">Quotidien</option>
+                    <option value="Hebdomadaire">Hebdomadaire</option>
+                    <option value="Mensuel">Mensuel</option>
+                    <option value="Trimestriel">Trimestriel</option>
+                    <option value="Annuel">Annuel</option>
+                    <option value="Systématique">Systématique</option>
+                    <option value="Ponctuel">Ponctuel</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveControl()">Enregistrer</button>
+                <button class="btn" onclick="closeAddControlModal()" style="background:#6c757d; color:white;">Annuler</button>
+            </div>
+        </div>
+    </div>
 
-    document.addEventListener('DOMContentLoaded', function() {
-        loadControls();
-        document.getElementById('addButton').addEventListener('click', openAddModal);
-    });
+    <script>
+        // ============================================
+        // CONFIGURATION SUPABASE
+        // ============================================
+        // REMPLACEZ CES VALEURS PAR VOS IDENTIFIANTS SUPABASE
+        const SUPABASE_URL = 'VOTRE_URL_SUPABASE';  // Ex: 'https://xxxxxxxxxxxxx.supabase.co'
+        const SUPABASE_ANON_KEY = 'VOTRE_CLE_ANON_SUPABASE';  // Votre clé anon publique
+        
+        // Initialisation du client Supabase
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Charger les données depuis Supabase et remplir le tableau
-    async function loadControls() {
-        const { data, error } = await supabase
-            .from('controles')
-            .select('*')
-            .order('ordre', { ascending: true });
-        const tbody = document.getElementById('controlsTableBody');
-        tbody.innerHTML = '';
-        if (data) {
-            data.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${item.processus || ''}</td>
-                    <td>${item.controle || ''}</td>
-                    <td>${item.description || ''}</td>
-                    <td>${item.responsable || ''}</td>
-                    <td>${item.frequence || ''}</td>
-                    <td><button class="status-btn" onclick="toggleStatus('${item.id}')">${item.statut === '✔️' ? '✔️' : '❌'}</button></td>
-                    <td onclick="updateDate('${item.id}')">${item.date_verification ? item.date_verification : ''}</td>
-                    <td>${item.commentaire || ''} <button class="action-btn edit-btn" title="Modifier commentaire" onclick="openCommentModal('${item.id}')">✎</button></td>
-                    <td>${item.ordre != null ? item.ordre : ''}</td>
-                    <td>
-                        <button class="action-btn edit-btn" onclick="openEditModal('${item.id}')">✎</button>
-                        <button class="action-btn delete-btn" onclick="deleteControl('${item.id}')">🗑️</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+        // Variables globales
+        let controles = [];
+        let processus = [];
+        let currentCommentId = null;
+        let currentEditId = null;
+        let isConnected = false;
+
+        // ============================================
+        // FONCTIONS UTILITAIRES
+        // ============================================
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
-    }
 
-    // Ouvrir le modal d'ajout
-    function openAddModal() {
-        document.getElementById('addModal').style.display = 'block';
-    }
-    function closeAddModal() {
-        document.getElementById('addModal').style.display = 'none';
-    }
-    async function openEditModal(id) {
-        // Récupérer les données du contrôle depuis Supabase
-        const { data, error } = await supabase
-            .from('controles')
-            .select('*')
-            .eq('id', id)
-            .single();
-        if (error) {
-            console.error('Erreur de chargement du contrôle:', error.message);
-        } else if (data) {
-            document.getElementById('editId').value = data.id;
-            document.getElementById('editProcessus').value = data.processus || '';
-            document.getElementById('editControle').value = data.controle || '';
-            document.getElementById('editDescription').value = data.description || '';
-            document.getElementById('editResponsable').value = data.responsable || '';
-            document.getElementById('editFrequence').value = data.frequence || '';
-            document.getElementById('editStatut').value = data.statut || '';
-            document.getElementById('editDateVerification').value = data.date_verification || '';
-            document.getElementById('editCommentaire').value = data.commentaire || '';
-            document.getElementById('editOrdre').value = data.ordre != null ? data.ordre : '';
-            document.getElementById('editModal').style.display = 'block';
-        }
-    }
-    function closeEditModal() {
-        document.getElementById('editModal').style.display = 'none';
-    }
-    async function openCommentModal(id) {
-        const { data, error } = await supabase
-            .from('controles')
-            .select('commentaire')
-            .eq('id', id)
-            .single();
-        if (error) {
-            console.error('Erreur de chargement du commentaire:', error.message);
-        } else if (data) {
-            document.getElementById('commentId').value = id;
-            document.getElementById('commentText').value = data.commentaire || '';
-            document.getElementById('commentModal').style.display = 'block';
-        }
-    }
-    function closeCommentModal() {
-        document.getElementById('commentModal').style.display = 'none';
-    }
-
-    // Ajouter un contrôle
-    async function addControl() {
-        const processus = document.getElementById('addProcessus').value;
-        const controle = document.getElementById('addControle').value;
-        const description = document.getElementById('addDescription').value;
-        const responsable = document.getElementById('addResponsable').value;
-        const frequence = document.getElementById('addFrequence').value;
-        const statut = document.getElementById('addStatut').value;
-        const date_verification = document.getElementById('addDateVerification').value || null;
-        const commentaire = document.getElementById('addCommentaire').value;
-        const ordre = parseInt(document.getElementById('addOrdre').value);
-        const { data, error } = await supabase
-            .from('controles')
-            .insert([{ processus, controle, description, responsable, frequence, statut, date_verification, commentaire, ordre }]);
-        if (error) {
-            console.error('Erreur d\'ajout:', error.message);
-        } else {
-            closeAddModal();
-            loadControls();
-        }
-    }
-
-    // Mettre à jour un contrôle
-    async function updateControl() {
-        const id = document.getElementById('editId').value;
-        const processus = document.getElementById('editProcessus').value;
-        const controle = document.getElementById('editControle').value;
-        const description = document.getElementById('editDescription').value;
-        const responsable = document.getElementById('editResponsable').value;
-        const frequence = document.getElementById('editFrequence').value;
-        const statut = document.getElementById('editStatut').value;
-        const date_verification = document.getElementById('editDateVerification').value || null;
-        const commentaire = document.getElementById('editCommentaire').value;
-        const ordre = parseInt(document.getElementById('editOrdre').value);
-        const { data, error } = await supabase
-            .from('controles')
-            .update({ processus, controle, description, responsable, frequence, statut, date_verification, commentaire, ordre })
-            .eq('id', id);
-        if (error) {
-            console.error('Erreur de mise à jour:', error.message);
-        } else {
-            closeEditModal();
-            loadControls();
-        }
-    }
-
-    // Supprimer un contrôle
-    async function deleteControl(id) {
-        if (confirm('Voulez-vous vraiment supprimer ce contrôle ?')) {
-            const { data, error } = await supabase
-                .from('controles')
-                .delete()
-                .eq('id', id);
-            if (error) {
-                console.error('Erreur de suppression:', error.message);
-            } else {
-                loadControls();
+        function showSaveIndicator(status) {
+            const indicator = document.getElementById('saveIndicator');
+            indicator.className = 'save-indicator ' + status;
+            if (status === 'saving') indicator.textContent = '💾 Sauvegarde...';
+            else if (status === 'saved') {
+                indicator.textContent = '✅ Sauvegardé';
+                setTimeout(() => { 
+                    indicator.className = 'save-indicator'; 
+                    indicator.textContent = ''; 
+                }, 1200);
+            } else if (status === 'error') {
+                indicator.textContent = '❌ Erreur';
+                setTimeout(() => { 
+                    indicator.className = 'save-indicator'; 
+                    indicator.textContent = ''; 
+                }, 2000);
             }
         }
-    }
 
-    // Mettre à jour le statut (✔️ / ❌)
-    async function toggleStatus(id) {
-        const { data: currentData, error: currentError } = await supabase
-            .from('controles')
-            .select('statut')
-            .eq('id', id)
-            .single();
-        if (currentError) {
-            console.error('Erreur de récupération du statut:', currentError.message);
-            return;
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error">⚠️ ${escapeHtml(message)}</div>`;
+            setTimeout(() => { container.innerHTML = ''; }, 5000);
         }
-        const newStatus = currentData.statut === '✔️' ? '❌' : '✔️';
-        const { error } = await supabase
-            .from('controles')
-            .update({ statut: newStatus })
-            .eq('id', id);
-        if (error) {
-            console.error('Erreur de mise à jour du statut:', error.message);
-        } else {
-            loadControls();
-        }
-    }
 
-    // Modifier le commentaire via modal
-    async function updateComment() {
-        const id = document.getElementById('commentId').value;
-        const commentaire = document.getElementById('commentText').value;
-        const { data, error } = await supabase
-            .from('controles')
-            .update({ commentaire: commentaire })
-            .eq('id', id);
-        if (error) {
-            console.error('Erreur de mise à jour du commentaire:', error.message);
-        } else {
-            closeCommentModal();
-            loadControls();
+        function updateConnectionStatus(connected) {
+            isConnected = connected;
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.className = 'connection-status connected';
+                status.textContent = '✓ Connecté';
+            } else {
+                status.className = 'connection-status disconnected';
+                status.textContent = '✗ Déconnecté';
+            }
         }
-    }
 
-    // Mettre à jour la date de vérification à aujourd'hui
-    async function updateDate(id) {
-        const today = new Date().toISOString().split('T')[0];
-        const { data, error } = await supabase
-            .from('controles')
-            .update({ date_verification: today })
-            .eq('id', id);
-        if (error) {
-            console.error('Erreur de mise à jour de la date:', error.message);
-        } else {
-            loadControls();
+        // ============================================
+        // CHARGEMENT DES DONNÉES
+        // ============================================
+        async function testConnection() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('controles')
+                    .select('count', { count: 'exact', head: true });
+                
+                if (error) {
+                    console.error('Erreur de connexion:', error);
+                    updateConnectionStatus(false);
+                    return false;
+                }
+                updateConnectionStatus(true);
+                return true;
+            } catch (e) {
+                console.error('Erreur de test de connexion:', e);
+                updateConnectionStatus(false);
+                return false;
+            }
         }
-    }
-</script>
 
-</body>
-</html>
+        async function loadData() {
+            try {
+                document.getElementById('loadingIndicator').style.display = 'block';
+                
+                // Test de connexion
+                const connected = await testConnection();
+                if (!connected) {
+                    throw new Error('Impossible de se connecter à Supabase. Vérifiez vos identifiants.');
+                }
+
+                // Chargement des données
+                const { data, error } = await supabaseClient
+                    .from('controles')
+                    .select('*')
+                    .order('processus', { ascending: true })
+                    .order('ordre', { ascending: true });
+                
+                if (error) throw error;
+
+                controles = data || [];
+                processus = Array.from(new Set(controles.map(c => c.processus).filter(Boolean)));
+                
+                updateFilterOptions();
+                renderTable(controles);
+                updateStats();
+                
+                const isEmpty = controles.length === 0;
+                document.getElementById('emptyState').style.display = isEmpty ? 'block' : 'none';
+                document.getElementById('controlTable').style.display = isEmpty ? 'none' : 'table';
+                
+            } catch (e) {
+                console.error('Erreur lors du chargement:', e);
+                showError(e.message || 'Erreur lors du chargement des données.');
+                updateConnectionStatus(false);
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+
+        // ============================================
+        // GESTION DES PROCESSUS
+        // ============================================
+        function openAddProcessModal() {
+            document.getElementById('processNom').value = '';
+            document.getElementById('processResponsable').value = '';
+            document.getElementById('addProcessModal').style.display = 'block';
+        }
+
+        function closeAddProcessModal() {
+            document.getElementById('addProcessModal').style.display = 'none';
+        }
+
+        async function saveProcess() {
+            const nom = document.getElementById('processNom').value.trim();
+            const responsable = document.getElementById('processResponsable').value.trim();
+            
+            if (!nom) return showError('Le nom du processus est requis.');
+            
+            try {
+                if (!processus.includes(nom)) {
+                    processus.push(nom);
+                    updateFilterOptions();
+                    showSaveIndicator('saved');
+                } else {
+                    showError('Processus déjà existant.');
+                }
+            } catch (e) {
+                showError(e.message);
+            }
+            closeAddProcessModal();
+        }
+
+        // ============================================
+        // GESTION DES CONTRÔLES
+        // ============================================
+        function openAddControlModal() {
+            currentEditId = null;
+            document.getElementById('controlModalTitle').textContent = '➕ Nouveau Contrôle';
+            document.getElementById('controlProcessus').value = '';
+            document.getElementById('controlNom').value = '';
+            document.getElementById('controlDescription').value = '';
+            document.getElementById('controlResponsable').value = '';
+            document.getElementById('controlFrequence').value = 'Mensuel';
+            updateFilterOptions();
+            document.getElementById('addControlModal').style.display = 'block';
+        }
+
+        function closeAddControlModal() {
+            currentEditId = null;
+            document.getElementById('addControlModal').style.display = 'none';
+        }
+
+        async function saveControl() {
+            const processusVal = document.getElementById('controlProcessus').value.trim();
+            const nom = document.getElementById('controlNom').value.trim();
+            const desc = document.getElementById('controlDescription').value.trim();
+            const resp = document.getElementById('controlResponsable').value.trim();
+            const frequence = document.getElementById('controlFrequence').value;
+
+            if (!processusVal) return showError('Veuillez sélectionner un processus.');
+            if (!nom) return showError('Le nom du contrôle est requis.');
+            if (!resp) return showError('Le responsable est requis.');
+
+            showSaveIndicator('saving');
+            
+            try {
+                if (currentEditId) {
+                    // Mise à jour
+                    const { error } = await supabaseClient
+                        .from('controles')
+                        .update({
+                            processus: processusVal,
+                            controle: nom,
+                            description: desc,
+                            responsable: resp,
+                            frequence: frequence
+                        })
+                        .eq('id', currentEditId);
+                    
+                    if (error) throw error;
+                } else {
+                    // Création
+                    const { error } = await supabaseClient
+                        .from('controles')
+                        .insert([{
+                            processus: processusVal,
+                            controle: nom,
+                            description: desc,
+                            responsable: resp,
+                            frequence: frequence,
+                            statut: '❌',
+                            commentaire: '',
+                            date_verification: null
+                        }]);
+                    
+                    if (error) throw error;
+                }
+                
+                currentEditId = null;
+                closeAddControlModal();
+                await loadData();
+                showSaveIndicator('saved');
+                
+            } catch (e) {
+                showSaveIndicator('error');
+                showError(e.message || 'Erreur lors de la sauvegarde.');
+            }
+        }
+
+        // ============================================
+        // GESTION DU STATUT
+        // ============================================
+        async function toggleStatus(id) {
+            try {
+                const ctrl = controles.find(c => c.id === id);
+                if (!ctrl) return;
+                
+                let next;
+                if (!ctrl.statut || ctrl.statut === '❌') next = '…';
+                else if (ctrl.statut === '…') next = '✔️';
+                else next = '❌';
+                
+                showSaveIndicator('saving');
+                
+                const { error } = await supabaseClient
+                    .from('controles')
+                    .update({ statut: next })
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                await loadData();
+                showSaveIndicator('saved');
+                
+            } catch (e) {
+                showSaveIndicator('error');
+                showError(e.message || 'Erreur lors de la mise à jour du statut');
+            }
+        }
+
+        // ============================================
+        // GESTION DE LA DATE
+        // ============================================
+        async function updateDate(id) {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                showSaveIndicator('saving');
+                
+                const { error } = await supabaseClient
+                    .from('controles')
+                    .update({ date_verification: today })
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                await loadData();
+                showSaveIndicator('saved');
+                
+            } catch (e) {
+                showSaveIndicator('error');
+                showError(e.message || 'Erreur lors de la mise à jour de la date');
+            }
+        }
+
+        // ============================================
+        // GESTION DES COMMENTAIRES
+        // ============================================
+        window.openCommentModal = function(id) {
+            currentCommentId = id;
+            const ctrl = controles.find(c => c.id === id);
+            document.getElementById('commentText').value = ctrl?.commentaire || '';
+            document.getElementById('commentModal').style.display = 'block';
+        };
+
+        function closeCommentModal() {
+            currentCommentId = null;
+            document.getElementById('commentText').value = '';
+            document.getElementById('commentModal').style.display = 'none';
+        }
+
+        async function saveComment() {
+            if (!currentCommentId) return closeCommentModal();
+            
+            try {
+                const texte = document.getElementById('commentText').value;
+                showSaveIndicator('saving');
+                
+                const { error } = await supabaseClient
+                    .from('controles')
+                    .update({ commentaire: texte })
+                    .eq('id', currentCommentId);
+                
+                if (error) throw error;
+                
+                await loadData();
+                closeCommentModal();
+                showSaveIndicator('saved');
+                
+            } catch (e) {
+                showSaveIndicator('error');
+                showError(e.message || 'Erreur lors de la sauvegarde du commentaire');
+            }
+        }
+
+        // ============================================
+        // ÉDITION ET SUPPRESSION
+        // ============================================
+        window.editControl = function(id) {
+            const ctrl = controles.find(c => c.id === id);
+            if (!ctrl) return showError('Contrôle introuvable.');
+            
+            currentEditId = id;
+            document.getElementById('controlModalTitle').textContent = '✏️ Modifier Contrôle';
+            document.getElementById('controlProcessus').value = ctrl.processus || '';
+            document.getElementById('controlNom').value = ctrl.controle || '';
+            document.getElementById('controlDescription').value = ctrl.description || '';
+            document.getElementById('controlResponsable').value = ctrl.responsable || '';
+            document.getElementById('controlFrequence').value = ctrl.frequence || 'Mensuel';
+            document.getElementById('addControlModal').style.display = 'block';
+            updateFilterOptions();
+        };
+
+        async function deleteControl(id) {
+            if (!confirm('Voulez-vous vraiment supprimer ce contrôle ?')) return;
+            
+            try {
+                showSaveIndicator('saving');
+                
+                const { error } = await supabaseClient
+                    .from('controles')
+                    .delete()
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                await loadData();
+                showSaveIndicator('saved');
+                
+            } catch (e) {
+                showSaveIndicator('error');
+                showError(e.message || 'Erreur lors de la suppression');
+            }
+        }
+
+        async function deleteProcess(processName) {
+            if (!processName) return;
+            if (!confirm(`Supprimer tous les contrôles du processus "${processName}" ?`)) return;
+            
+            try {
+                showSaveIndicator('saving');
+                
+                const { error } = await supabaseClient
+                    .from('controles')
+                    .delete()
+                    .eq('processus', processName);
