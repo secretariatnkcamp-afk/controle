@@ -7,203 +7,200 @@
 
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-
-const supabaseUrl = 'https://bcwbyugpjlwrpvbbgajg.supabase.co'
-const supabaseKey = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
-const supabase = createClient(supabaseUrl, supabaseKey)
+window.supabase = createClient(
+  'https://bcwbyugpjlwrpvbbgajg.supabase.co',
+  'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
+)
 </script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: Arial, sans-serif; background: #f2f4f8; padding: 15px; }
-.container { background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden; }
-.header { background: #5b6cff; color: white; padding: 20px; text-align: center; }
-.controls { padding: 15px; display: flex; gap: 10px; flex-wrap: wrap; background: #f8f9fa; }
-button { padding: 10px 18px; border: none; border-radius: 6px; background: #5b6cff; color: white; font-weight: bold; cursor: pointer; }
-button:hover { opacity: 0.9; }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-.table-container { padding: 15px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { border: 1px solid #ddd; padding: 10px; vertical-align: top; }
-th { background: #5b6cff; color: white; }
-.process-header td { background: #e9f0ff; font-weight: bold; }
-.status-badge { padding: 6px 14px; border-radius: 20px; font-weight: bold; cursor: pointer; display: inline-block; touch-action: manipulation; }
-.status-ok { background: #d4edda; color: #155724; }
-.status-ko { background: #f8d7da; color: #721c24; }
-.comment-icon { cursor: pointer; font-size: 18px; touch-action: manipulation; }
-.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); }
-.modal-content { background: white; max-width: 500px; margin: 15% auto; padding: 20px; border-radius: 10px; }
-textarea { width: 100%; min-height: 120px; margin-top: 10px; }
-.loading { text-align: center; padding: 40px; color: #666; }
-.error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 6px; margin: 15px; }
-.save-indicator { display: inline-block; margin-left: 10px; font-size: 12px; color: #666; }
-.save-indicator.saving { color: #ffc107; }
-.save-indicator.saved { color: #28a745; }
-.save-indicator.error { color: #dc3545; }
+body{font-family:Segoe UI;background:#f4f6fb;padding:20px}
+.container{background:#fff;border-radius:14px;box-shadow:0 15px 40px rgba(0,0,0,.2);overflow:hidden}
+header{background:#667eea;color:#fff;padding:25px;text-align:center}
+.controls{padding:15px;display:flex;gap:10px;flex-wrap:wrap}
+button{padding:10px 16px;border:none;border-radius:8px;background:#667eea;color:#fff;font-weight:600;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:10px;vertical-align:top}
+th{background:#667eea;color:#fff}
+.process-row{background:#e8efff;font-weight:bold}
+.editable{cursor:pointer}
+select{padding:6px;border-radius:6px}
+.status-Conforme{background:#d4edda}
+.status-Non\ conforme{background:#f8d7da}
+.status-En\ cours{background:#fff3cd}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5)}
+.modal-content{background:#fff;margin:10% auto;padding:20px;border-radius:12px;max-width:500px}
+textarea,input{width:100%;padding:8px;margin-top:8px}
+.stats{display:flex;gap:15px;padding:15px;background:#f8f9fa}
+.stat{background:#fff;padding:15px;border-radius:10px;flex:1;text-align:center}
 </style>
 </head>
 
 <body>
 
 <div class="container">
-    <div class="header">
-        <h2>Grille de Contrôle Opérationnel</h2>
-        <p>Version interactive – PC & Mobile</p>
-        <span class="save-indicator" id="saveIndicator"></span>
-    </div>
+<header>
+<h2>📊 Grille de Contrôle Opérationnel</h2>
+<p>Création et suivi dynamique</p>
+</header>
 
-    <div class="controls">
-        <button onclick="exportExcel()">📥 Export Excel</button>
-    </div>
+<div class="controls">
+<button onclick="openAddModal()">➕ Ajouter un contrôle</button>
+<button onclick="exportExcel()">📥 Export Excel</button>
+</div>
 
-    <div id="errorContainer"></div>
+<div class="stats">
+<div class="stat">Total<br><b id="total">0</b></div>
+<div class="stat">Conformes<br><b id="ok">0</b></div>
+<div class="stat">Non conformes<br><b id="ko">0</b></div>
+<div class="stat">En cours<br><b id="encours">0</b></div>
+</div>
 
-    <div class="table-container">
-        <div id="loadingIndicator" class="loading">Chargement des données...</div>
-        <table id="controlTable" style="display: none;">
-            <thead>
-                <tr>
-                    <th>Processus / Contrôle</th>
-                    <th>Description</th>
-                    <th>Responsable</th>
-                    <th>Statut</th>
-                    <th>Commentaires</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-            </tbody>
-        </table>
-    </div>
+<table id="table">
+<thead>
+<tr>
+<th>Processus</th>
+<th>Contrôle</th>
+<th>Description</th>
+<th>Responsable</th>
+<th>Fréquence</th>
+<th>Statut</th>
+<th>Date</th>
+<th>💬</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+
+<!-- MODAL AJOUT -->
+<div class="modal" id="addModal">
+<div class="modal-content">
+<h3>Nouveau contrôle</h3>
+<input id="p_processus" placeholder="Processus">
+<input id="p_controle" placeholder="Nom du contrôle">
+<textarea id="p_description" placeholder="Description"></textarea>
+<input id="p_responsable" placeholder="Responsable">
+<input id="p_frequence" placeholder="Fréquence">
+<button onclick="addControle()">Enregistrer</button>
+<button onclick="closeAddModal()">Fermer</button>
+</div>
 </div>
 
 <!-- MODAL COMMENTAIRE -->
-<div class="modal" id="modal">
-    <div class="modal-content">
-        <h3>Commentaire</h3>
-        <textarea id="commentText"></textarea><br><br>
-        <button onclick="saveComment()">Enregistrer</button>
-        <button onclick="closeModal()" style="background:#999;">Fermer</button>
-    </div>
+<div class="modal" id="commentModal">
+<div class="modal-content">
+<h3>Commentaire</h3>
+<textarea id="commentText"></textarea>
+<button onclick="saveComment()">Sauvegarder</button>
+<button onclick="closeComment()">Fermer</button>
+</div>
 </div>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-const supabaseUrl = 'https://bcwbyugpjlwrpvbbgajg.supabase.co'
-const supabaseKey = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
-const supabase = createClient(supabaseUrl, supabaseKey)
+let controles=[],currentId=null
 
-let controles = []
-let currentControleId = null
-
-async function loadData() {
-    try {
-        const { data, error } = await supabase.from('controles').select('*')
-        if (error) throw error
-        controles = data
-        renderTable()
-        document.getElementById('loadingIndicator').style.display = 'none'
-        document.getElementById('controlTable').style.display = 'table'
-        document.getElementById('errorContainer').innerHTML = ''
-    } catch (err) {
-        console.error(err)
-        document.getElementById('loadingIndicator').style.display = 'none'
-        document.getElementById('errorContainer').innerHTML =
-            '<div class="error">Impossible de charger les données. Vérifiez la base Supabase.</div>'
-    }
+async function load(){
+const {data}=await supabase.from('controles').select('*').order('processus')
+controles=data||[]
+render()
+stats()
 }
 
-function renderTable() {
-    const tbody = document.getElementById('tableBody')
-    tbody.innerHTML = ''
-    let currentProcess = ''
-    controles.forEach(ctrl => {
-        if (ctrl.processus !== currentProcess) {
-            currentProcess = ctrl.processus
-            const headerRow = document.createElement('tr')
-            headerRow.className = 'process-header'
-            headerRow.innerHTML = `<td colspan="5">${currentProcess} – Responsable : ${ctrl.responsable}</td>`
-            tbody.appendChild(headerRow)
-        }
-        const row = document.createElement('tr')
-        row.dataset.id = ctrl.id
-        row.dataset.statut = ctrl.statut
-        const isOk = ctrl.statut === '✔️'
-        const statusClass = isOk ? 'status-ok' : 'status-ko'
-        const commentPreview = ctrl.commentaire ? (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0,40)+'...' : ctrl.commentaire) : ''
-        row.innerHTML = `
-            <td>${ctrl.controle}</td>
-            <td>${ctrl.description}</td>
-            <td>${ctrl.responsable}</td>
-            <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut}</span></td>
-            <td><span class="comment-icon" onclick="openComment('${ctrl.id}')">💬</span> <span class="comment-preview">${commentPreview}</span></td>
-        `
-        tbody.appendChild(row)
-    })
+function render(){
+const tb=document.getElementById('tbody')
+tb.innerHTML=''
+let proc=''
+controles.forEach(c=>{
+if(c.processus!==proc){
+proc=c.processus
+tb.innerHTML+=`<tr class="process-row"><td colspan="8">${proc}</td></tr>`
+}
+tb.innerHTML+=`
+<tr>
+<td class="editable" ondblclick="edit(this,'processus','${c.id}')">${c.processus}</td>
+<td class="editable" ondblclick="edit(this,'controle','${c.id}')">${c.controle}</td>
+<td class="editable" ondblclick="edit(this,'description','${c.id}')">${c.description||''}</td>
+<td class="editable" ondblclick="edit(this,'responsable','${c.id}')">${c.responsable||''}</td>
+<td class="editable" ondblclick="edit(this,'frequence','${c.id}')">${c.frequence||''}</td>
+<td>
+<select onchange="updateStatus('${c.id}',this.value)" class="status-${c.statut}">
+<option ${c.statut=='Conforme'?'selected':''}>Conforme</option>
+<option ${c.statut=='Non conforme'?'selected':''}>Non conforme</option>
+<option ${c.statut=='En cours'?'selected':''}>En cours</option>
+</select>
+</td>
+<td class="editable" ondblclick="edit(this,'date_verif','${c.id}')">${c.date_verif||''}</td>
+<td><button onclick="openComment('${c.id}')">💬</button></td>
+</tr>`
+})
 }
 
-// Fonctions exposées globalement pour le HTML
-window.toggleStatus = async function(id) {
-    const ctrl = controles.find(c => c.id === id)
-    if (!ctrl) return
-    ctrl.statut = ctrl.statut === '❌' ? '✔️' : '❌'
-    renderTable()
-    await saveControle(ctrl)
+window.edit=(cell,col,id)=>{
+const val=cell.textContent
+cell.innerHTML=`<input value="${val}" onblur="save('${id}','${col}',this.value)">`
+cell.firstChild.focus()
 }
 
-window.openComment = function(id) {
-    currentControleId = id
-    const ctrl = controles.find(c => c.id === id)
-    document.getElementById('commentText').value = ctrl ? ctrl.commentaire || '' : ''
-    document.getElementById('modal').style.display = 'block'
+window.save=async(id,col,val)=>{
+await supabase.from('controles').update({[col]:val}).eq('id',id)
+load()
 }
 
-window.closeModal = function() {
-    document.getElementById('modal').style.display = 'none'
-    currentControleId = null
+window.updateStatus=async(id,val)=>{
+await supabase.from('controles').update({statut:val}).eq('id',id)
+load()
 }
 
-window.saveComment = async function() {
-    if (currentControleId === null) return
-    const ctrl = controles.find(c => c.id === currentControleId)
-    if (!ctrl) return
-    ctrl.commentaire = document.getElementById('commentText').value
-    renderTable()
-    closeModal()
-    await saveControle(ctrl)
+window.openAddModal=()=>document.getElementById('addModal').style.display='block'
+window.closeAddModal=()=>document.getElementById('addModal').style.display='none'
+
+window.addControle=async()=>{
+await supabase.from('controles').insert({
+processus:p_processus.value,
+controle:p_controle.value,
+description:p_description.value,
+responsable:p_responsable.value,
+frequence:p_frequence.value,
+statut:'En cours'
+})
+closeAddModal()
+load()
 }
 
-async function saveControle(ctrl) {
-    const indicator = document.getElementById('saveIndicator')
-    indicator.textContent = '⏳ Sauvegarde...'
-    indicator.className = 'save-indicator saving'
-    try {
-        const { error } = await supabase.from('controles').update({
-            statut: ctrl.statut,
-            commentaire: ctrl.commentaire
-        }).eq('id', ctrl.id)
-        if (error) throw error
-        indicator.textContent = '✓ Sauvegardé'
-        indicator.className = 'save-indicator saved'
-        setTimeout(() => { indicator.textContent = '' }, 2000)
-    } catch (err) {
-        console.error(err)
-        indicator.textContent = '⚠ Erreur'
-        indicator.className = 'save-indicator error'
-    }
+window.openComment=id=>{
+currentId=id
+document.getElementById('commentModal').style.display='block'
 }
 
-window.exportExcel = function() {
-    const wb = XLSX.utils.table_to_book(
-        document.getElementById('controlTable'),
-        { sheet: "Contrôles" }
-    )
-    XLSX.writeFile(wb, "grille_controle_operationnel.xlsx")
+window.saveComment=async()=>{
+await supabase.from('controles').update({commentaire:commentText.value}).eq('id',currentId)
+closeComment()
 }
 
-document.addEventListener('DOMContentLoaded', loadData)
+window.closeComment=()=>document.getElementById('commentModal').style.display='none'
+
+function stats(){
+let ok=0,ko=0,en=0
+controles.forEach(c=>{
+if(c.statut=='Conforme')ok++
+if(c.statut=='Non conforme')ko++
+if(c.statut=='En cours')en++
+})
+total.textContent=controles.length
+document.getElementById('ok').textContent=ok
+document.getElementById('ko').textContent=ko
+document.getElementById('encours').textContent=en
+}
+
+window.exportExcel=()=>{
+const wb=XLSX.utils.table_to_book(document.getElementById('table'))
+XLSX.writeFile(wb,'grille_controle.xlsx')
+}
+
+document.addEventListener('DOMContentLoaded',load)
 </script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </body>
 </html>
-
