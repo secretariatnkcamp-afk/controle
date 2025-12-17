@@ -1,558 +1,227 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Grille de Contrôle Opérationnel</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Grille Contrôle</title>
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px; min-height:100vh;
-        }
-        .container {
-            max-width: 1800px; margin:0 auto; background:white; border-radius:15px;
-            box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color:white; padding:30px; text-align:center; position:relative;
-        }
-        .header h1 { font-size:28px; margin-bottom:10px; }
-        .header p { font-size:14px; opacity:0.9; }
-        .save-indicator { position:absolute; top:20px; right:30px; padding:8px 16px;
-            border-radius:20px; font-size:13px; font-weight:600; background:rgba(255,255,255,0.2);
-        }
-        .save-indicator.saving { background:#ffc107; color:#000; }
-        .save-indicator.saved { background:#28a745; color:white; }
-        .save-indicator.error { background:#dc3545; color:white; }
-
-        .controls { padding:20px 30px; background:#f8f9fa; border-bottom:2px solid #e9ecef;
-            display:flex; gap:15px; flex-wrap:wrap; align-items:center;
-        }
-        .btn { padding:12px 24px; border:none; border-radius:8px; cursor:pointer;
-            font-size:14px; font-weight:600; transition:all 0.3s; display:flex; align-items:center; gap:8px;
-        }
-        .btn-primary { background:#667eea; color:white; }
-        .btn-primary:hover { background:#5568d3; transform:translateY(-2px); box-shadow:0 5px 15px rgba(102,126,234,0.4); }
-        .btn-success { background:#28a745; color:white; }
-        .btn-warning { background:#ffc107; color:#000; }
-        .btn-danger { background:#dc3545; color:white; }
-        .btn-sm { padding:6px 12px; font-size:12px; }
-
-        .filter-group { display:flex; gap:10px; align-items:center; }
-        .filter-group select, .filter-group input {
-            padding:10px; border:2px solid #e9ecef; border-radius:8px; font-size:14px;
-        }
-
-        .stats { padding:30px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px; background:#f8f9fa; }
-        .stat-card { background:white; padding:20px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); text-align:center; }
-        .stat-value { font-size:32px; font-weight:700; margin:10px 0; }
-        .stat-label { color:#6c757d; font-size:13px; }
-
-        .table-container { overflow-x:auto; padding:30px; }
-        table { width:100%; border-collapse:collapse; font-size:12px; }
-        thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; position:sticky; top:0; z-index:10; }
-        th { padding:15px 10px; text-align:left; font-weight:600; border-right:1px solid rgba(255,255,255,0.2); font-size:13px; }
-        th:last-child { border-right:none; }
-        tbody tr { border-bottom:1px solid #e9ecef; }
-        tbody tr:hover { background:#f8f9fa; }
-        td { padding:12px 10px; vertical-align:top; border-right:1px solid #e9ecef; }
-        td:last-child { border-right:none; }
-
-        .process-header { background:#e7f3ff; font-weight:bold; font-size:14px; padding:15px !important; }
-        .control-row { background:white; }
-        .status-badge { display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.3s; }
-        .status-conforme { background:#d4edda; color:#155724; }
-        .status-non-conforme { background:#f8d7da; color:#721c24; }
-        .status-attente { background:#fff3cd; color:#856404; }
-        .comment-icon { cursor:pointer; color:#667eea; font-size:16px; margin-right:5px; }
-        .comment-preview { font-size:11px; color:#6c757d; font-style:italic; }
-        .process-status { font-weight:bold; font-size:13px; padding:8px 15px; border-radius:6px; display:inline-block; margin-left:15px; }
-        .process-conforme { background:#d4edda; color:#155724; }
-        .process-non-conforme { background:#f8d7da; color:#721c24; }
-
-        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); overflow-y:auto; }
-        .modal-content { background:white; margin:5% auto; padding:30px; border-radius:12px; width:90%; max-width:700px; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
-        .modal-header { font-size:20px; font-weight:600; margin-bottom:20px; color:#667eea; }
-        .close { color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer; }
-        .close:hover { color:#000; }
-        .form-group { margin-bottom:20px; }
-        .form-group label { display:block; font-weight:600; margin-bottom:8px; color:#333; }
-        .form-group input, .form-group select, .form-group textarea { width:100%; padding:12px; border:2px solid #e9ecef; border-radius:8px; font-family:inherit; font-size:14px; }
-        .form-group textarea { resize:vertical; min-height:100px; }
-        .modal-footer { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
-        .loading { text-align:center; padding:40px; color:#666; }
-        .error { background:#f8d7da; color:#721c24; padding:15px; border-radius:6px; margin:15px; }
-        .action-buttons { display:flex; gap:5px; }
-        .empty-state { text-align:center; padding:60px 20px; color:#6c757d; }
-        .empty-state-icon { font-size:64px; margin-bottom:20px; }
-        .empty-state h3 { font-size:24px; margin-bottom:10px; }
-
-        @media (max-width:768px) {
-            .controls { flex-direction:column; align-items:stretch; }
-            .filter-group { flex-direction:column; width:100%; }
-            .filter-group select, .filter-group input { width:100%; }
-        }
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 5px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background: #4CAF50; color: white; }
+        .statut { cursor: pointer; padding: 5px; border-radius: 3px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Grille de Contrôle Opérationnel</h1>
-            <p>Système de gestion et de suivi des contrôles internes</p>
-            <span class="save-indicator" id="saveIndicator"></span>
-        </div>
-
-        <div class="controls">
-            <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Nouveau Processus</button>
-            <button class="btn btn-primary" onclick="openAddControlModal()">➕ Nouveau Contrôle</button>
-            <button class="btn btn-success" onclick="exportToExcel()">📥 Export Excel</button>
-            <button class="btn btn-warning" onclick="toggleStats()">📈 Statistiques</button>
-            <div class="filter-group">
-                <input type="text" id="searchInput" placeholder="🔍 Rechercher..." oninput="filterTable()">
-                <select id="filterProcessus" onchange="filterTable()">
-                    <option value="">Tous les processus</option>
-                </select>
-                <select id="filterStatut" onchange="filterTable()">
-                    <option value="">Tous les statuts</option>
-                    <option value="✔️">Conforme</option>
-                    <option value="❌">Non conforme</option>
-                    <option value="…">En attente</option>
-                </select>
-            </div>
-            <span id="dbStatus" style="margin-left:auto; padding:8px 12px; border-radius:6px; font-size:12px; background:#f8f9fa;">⏳ Connexion...</span>
-        </div>
-
-        <div class="stats" id="statsSection" style="display:none;">
-            <div class="stat-card">
-                <div class="stat-label">Total Processus</div>
-                <div class="stat-value" id="totalProcessus">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Contrôles</div>
-                <div class="stat-value" id="totalControles">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Contrôles Conformes</div>
-                <div class="stat-value" style="color:#28a745;" id="conformes">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Non Conformes</div>
-                <div class="stat-value" style="color:#dc3545;" id="nonConformes">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Taux de Conformité</div>
-                <div class="stat-value" style="color:#667eea;" id="tauxConformite">0%</div>
-            </div>
-        </div>
-
-        <div id="errorContainer"></div>
-
-        <div class="table-container">
-            <div id="loadingIndicator" class="loading">⏳ Connexion à Supabase...</div>
-            <div id="emptyState" class="empty-state" style="display:none;">
-                <div class="empty-state-icon">📋</div>
-                <h3>Aucun contrôle pour le moment</h3>
-                <p>Commencez par créer un nouveau contrôle</p><br>
-                <button class="btn btn-primary" onclick="openAddControlModal()">➕ Créer un contrôle</button>
-            </div>
-
-            <table id="controlTable" style="display:none;">
-                <thead>
-                    <tr>
-                        <th style="width:180px;">Processus / Contrôle</th>
-                        <th style="width:200px;">Description</th>
-                        <th style="width:120px;">Responsable</th>
-                        <th style="width:100px;">Fréquence</th>
-                        <th style="width:100px;">Statut</th>
-                        <th style="width:100px;">Date Vérif.</th>
-                        <th style="width:200px;">Commentaires</th>
-                        <th style="width:120px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Modals -->
-    <div id="addControlModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeAddControlModal()">&times;</span>
-            <div class="modal-header" id="controlModalTitle">➕ Nouveau Contrôle</div>
-            <div class="form-group">
-                <label>Processus *</label>
-                <input type="text" id="controlProcessus" placeholder="Ex: Cycle Achats">
-            </div>
-            <div class="form-group">
-                <label>Nom du Contrôle *</label>
-                <input type="text" id="controlNom" placeholder="Ex: Émission Bon de Commande">
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea id="controlDescription" placeholder="Description..."></textarea>
-            </div>
-            <div class="form-group">
-                <label>Responsable *</label>
-                <input type="text" id="controlResponsable" placeholder="Ex: Sophie Martin">
-            </div>
-            <div class="form-group">
-                <label>Fréquence *</label>
-                <select id="controlFrequence">
-                    <option value="Quotidien">Quotidien</option>
-                    <option value="Hebdomadaire">Hebdomadaire</option>
-                    <option value="Mensuel">Mensuel</option>
-                    <option value="Trimestriel">Trimestriel</option>
-                    <option value="Annuel">Annuel</option>
-                </select>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" onclick="saveControl()">Enregistrer</button>
-                <button class="btn" onclick="closeAddControlModal()">Annuler</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="commentModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeCommentModal()">&times;</span>
-            <div class="modal-header">💬 Commentaire</div>
-            <textarea id="commentText" placeholder="Commentaire..."></textarea>
-            <div class="modal-footer">
-                <button class="btn btn-primary" onclick="saveComment()">Enregistrer</button>
-                <button class="btn" onclick="closeCommentModal()">Annuler</button>
-            </div>
-        </div>
-    </div>
+    <h1>📊 Grille de Contrôle</h1>
+    
+    <button onclick="charger()">🔄 CHARGER</button>
+    <button onclick="ajouter()">➕ AJOUTER</button>
+    <button onclick="supprimer()">🗑️ SUPPRIMER</button>
+    
+    <div id="message" style="margin: 10px 0; padding: 10px;"></div>
+    
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Processus</th>
+                <th>Contrôle</th>
+                <th>Responsable</th>
+                <th>Statut</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
 
     <script>
-        // Configuration
-        const SUPABASE_URL = 'https://bcwbyugpjlwrpvbbgajg.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60';
+        // VARIABLES GLOBALES
+        let mesDonnees = [];
         
-        // Variables
-        let supabase = null;
-        let controles = [];
-        let currentCommentId = null;
-        
-        // Initialisation
-        async function init() {
-            console.log('Démarrage...');
+        // FONCTION CHARGER
+        async function charger() {
+            console.log("CHARGEMENT...");
+            document.getElementById('message').innerHTML = "Chargement...";
+            document.getElementById('message').style.background = "#ffffcc";
             
             try {
-                // Créer client Supabase
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                console.log('Supabase initialisé');
+                // Appel DIRECT à l'API Supabase sans bibliothèque
+                const response = await fetch(
+                    'https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles?select=*',
+                    {
+                        headers: {
+                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
+                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
+                        }
+                    }
+                );
                 
-                // Charger les données
-                await loadData();
+                const data = await response.json();
+                console.log("DONNEES RECUES:", data);
+                mesDonnees = data;
                 
-            } catch (error) {
-                console.error('Erreur:', error);
-                showError('Erreur: ' + error.message);
-            }
-        }
-        
-        // Charger données
-        async function loadData() {
-            try {
-                console.log('Chargement...');
-                
-                const { data, error } = await supabase
-                    .from('controles')
-                    .select('*')
-                    .order('processus', { ascending: true });
-                
-                if (error) {
-                    console.error('Erreur chargement:', error);
-                    showError('Erreur: ' + error.message);
-                    return;
-                }
-                
-                controles = data || [];
-                console.log('Données chargées:', controles.length);
-                
-                // Mettre à jour l'interface
-                updateUI();
-                
-                document.getElementById('dbStatus').innerHTML = '🟢 Connecté';
-                document.getElementById('dbStatus').style.background = '#28a745';
-                document.getElementById('dbStatus').style.color = 'white';
+                // Afficher
+                afficher(data);
+                document.getElementById('message').innerHTML = data.length + " contrôle(s) chargé(s)";
+                document.getElementById('message').style.background = "#d4edda";
                 
             } catch (error) {
-                console.error('Exception:', error);
-                showError('Exception: ' + error.message);
+                console.error("ERREUR:", error);
+                document.getElementById('message').innerHTML = "Erreur: " + error.message;
+                document.getElementById('message').style.background = "#f8d7da";
             }
         }
         
-        // Mettre à jour l'interface
-        function updateUI() {
-            // Cacher chargement
-            document.getElementById('loadingIndicator').style.display = 'none';
-            
-            if (controles.length === 0) {
-                document.getElementById('emptyState').style.display = 'block';
-                document.getElementById('controlTable').style.display = 'none';
-            } else {
-                document.getElementById('emptyState').style.display = 'none';
-                document.getElementById('controlTable').style.display = 'table';
-                renderTable();
-                updateStats();
-            }
-        }
-        
-        // Afficher tableau
-        function renderTable() {
-            const tbody = document.getElementById('tableBody');
+        // FONCTION AFFICHER
+        function afficher(donnees) {
+            const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
             
-            let currentProcess = null;
-            
-            for (const ctrl of controles) {
-                if (ctrl.processus !== currentProcess) {
-                    currentProcess = ctrl.processus;
-                    const header = document.createElement('tr');
-                    header.className = 'process-header';
-                    header.innerHTML = `<td colspan="8"><strong>${currentProcess}</strong></td>`;
-                    tbody.appendChild(header);
-                }
+            donnees.forEach(item => {
+                const tr = document.createElement('tr');
                 
-                const row = document.createElement('tr');
-                row.className = 'control-row';
+                // Couleur selon statut
+                let couleur = "#f8d7da"; // rouge
+                if (item.statut === '✔️') couleur = "#d4edda"; // vert
+                else if (item.statut === '…') couleur = "#fff3cd"; // orange
                 
-                let statusClass = 'status-non-conforme';
-                if (ctrl.statut === '✔️') statusClass = 'status-conforme';
-                else if (ctrl.statut === '…') statusClass = 'status-attente';
-                
-                row.innerHTML = `
-                    <td><strong>${ctrl.controle || ''}</strong></td>
-                    <td>${ctrl.description || ''}</td>
-                    <td>${ctrl.responsable || ''}</td>
-                    <td>${ctrl.frequence || ''}</td>
-                    <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut || '❌'}</span></td>
-                    <td onclick="updateDate('${ctrl.id}')" style="cursor:pointer;">${ctrl.date_verification || 'Cliquer'}</td>
-                    <td>
-                        <span class="comment-icon" onclick="openCommentModal('${ctrl.id}')">💬</span>
-                        ${ctrl.commentaire || ''}
-                    </td>
-                    <td>
-                        <button class="btn btn-danger btn-sm" onclick="deleteControl('${ctrl.id}')">🗑️</button>
+                tr.innerHTML = `
+                    <td>${item.processus || ''}</td>
+                    <td><strong>${item.controle || ''}</strong></td>
+                    <td>${item.responsable || ''}</td>
+                    <td class="statut" style="background:${couleur}" onclick="changerStatut('${item.id}')">
+                        ${item.statut || '❌'}
                     </td>
                 `;
-                tbody.appendChild(row);
-            }
-        }
-        
-        // Statistiques
-        function updateStats() {
-            const total = controles.length;
-            const conformes = controles.filter(c => c.statut === '✔️').length;
-            const taux = total > 0 ? Math.round((conformes / total) * 100) : 0;
-            
-            document.getElementById('totalProcessus').textContent = new Set(controles.map(c => c.processus)).size;
-            document.getElementById('totalControles').textContent = total;
-            document.getElementById('conformes').textContent = conformes;
-            document.getElementById('nonConformes').textContent = total - conformes;
-            document.getElementById('tauxConformite').textContent = taux + '%';
-        }
-        
-        // Actions
-        async function toggleStatus(id) {
-            const ctrl = controles.find(c => c.id === id);
-            if (!ctrl) return;
-            
-            // Cycle statut
-            if (ctrl.statut === '❌') ctrl.statut = '…';
-            else if (ctrl.statut === '…') ctrl.statut = '✔️';
-            else ctrl.statut = '❌';
-            
-            try {
-                await supabase
-                    .from('controles')
-                    .update({ statut: ctrl.statut })
-                    .eq('id', id);
-                
-                renderTable();
-                updateStats();
-                showSaveIndicator('saved');
-            } catch (error) {
-                showError('Erreur: ' + error.message);
-            }
-        }
-        
-        async function updateDate(id) {
-            const today = new Date().toISOString().split('T')[0];
-            
-            try {
-                await supabase
-                    .from('controles')
-                    .update({ date_verification: today })
-                    .eq('id', id);
-                
-                await loadData(); // Recharger
-                showSaveIndicator('saved');
-            } catch (error) {
-                showError('Erreur: ' + error.message);
-            }
-        }
-        
-        async function deleteControl(id) {
-            if (!confirm('Supprimer ce contrôle ?')) return;
-            
-            try {
-                await supabase
-                    .from('controles')
-                    .delete()
-                    .eq('id', id);
-                
-                await loadData(); // Recharger
-                showSaveIndicator('saved');
-            } catch (error) {
-                showError('Erreur: ' + error.message);
-            }
-        }
-        
-        // Modales
-        function openAddControlModal() {
-            document.getElementById('addControlModal').style.display = 'block';
-        }
-        
-        function closeAddControlModal() {
-            document.getElementById('addControlModal').style.display = 'none';
-        }
-        
-        async function saveControl() {
-            const processus = document.getElementById('controlProcessus').value.trim();
-            const nom = document.getElementById('controlNom').value.trim();
-            const responsable = document.getElementById('controlResponsable').value.trim();
-            
-            if (!processus || !nom || !responsable) {
-                return showError('Remplissez tous les champs requis');
-            }
-            
-            try {
-                const newCtrl = {
-                    id: 'ctrl-' + Date.now(),
-                    processus: processus,
-                    controle: nom,
-                    description: document.getElementById('controlDescription').value.trim(),
-                    responsable: responsable,
-                    frequence: document.getElementById('controlFrequence').value,
-                    statut: '❌',
-                    commentaire: '',
-                    date_verification: ''
-                };
-                
-                await supabase
-                    .from('controles')
-                    .insert([newCtrl]);
-                
-                closeAddControlModal();
-                await loadData();
-                showSaveIndicator('saved');
-                
-            } catch (error) {
-                showError('Erreur: ' + error.message);
-            }
-        }
-        
-        // Commentaires
-        function openCommentModal(id) {
-            currentCommentId = id;
-            const ctrl = controles.find(c => c.id === id);
-            document.getElementById('commentText').value = ctrl?.commentaire || '';
-            document.getElementById('commentModal').style.display = 'block';
-        }
-        
-        function closeCommentModal() {
-            document.getElementById('commentModal').style.display = 'none';
-        }
-        
-        async function saveComment() {
-            if (!currentCommentId) return;
-            
-            const comment = document.getElementById('commentText').value;
-            
-            try {
-                await supabase
-                    .from('controles')
-                    .update({ commentaire: comment })
-                    .eq('id', currentCommentId);
-                
-                closeCommentModal();
-                await loadData();
-                showSaveIndicator('saved');
-            } catch (error) {
-                showError('Erreur: ' + error.message);
-            }
-        }
-        
-        // Export Excel
-        function exportToExcel() {
-            if (controles.length === 0) {
-                return showError('Aucune donnée à exporter');
-            }
-            
-            const data = controles.map(c => ({
-                Processus: c.processus,
-                Contrôle: c.controle,
-                Description: c.description,
-                Responsable: c.responsable,
-                Fréquence: c.frequence,
-                Statut: c.statut,
-                'Date Vérification': c.date_verification,
-                Commentaire: c.commentaire
-            }));
-            
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Contrôles');
-            XLSX.writeFile(wb, 'controles.xlsx');
-        }
-        
-        // Utilitaires
-        function showSaveIndicator(status) {
-            const el = document.getElementById('saveIndicator');
-            el.className = 'save-indicator ' + status;
-            el.textContent = status === 'saved' ? '✅ Sauvegardé' : '💾 Sauvegarde...';
-            if (status === 'saved') setTimeout(() => el.textContent = '', 2000);
-        }
-        
-        function showError(msg) {
-            const el = document.getElementById('errorContainer');
-            el.innerHTML = `<div class="error">${msg}</div>`;
-            setTimeout(() => el.innerHTML = '', 5000);
-        }
-        
-        function toggleStats() {
-            const el = document.getElementById('statsSection');
-            el.style.display = el.style.display === 'none' ? 'grid' : 'none';
-        }
-        
-        function filterTable() {
-            // Simple filtre pour l'instant
-            const search = document.getElementById('searchInput').value.toLowerCase();
-            const rows = document.querySelectorAll('.control-row');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(search) ? '' : 'none';
+                tbody.appendChild(tr);
             });
         }
         
-        // Fermer modales en cliquant dehors
-        window.onclick = function(event) {
-            if (event.target.className === 'modal') {
-                event.target.style.display = 'none';
+        // FONCTION CHANGER STATUT
+        async function changerStatut(id) {
+            console.log("Changer statut pour:", id);
+            
+            const item = mesDonnees.find(d => d.id === id);
+            if (!item) return;
+            
+            // Nouveau statut
+            let nouveauStatut = '❌';
+            if (item.statut === '❌' || !item.statut) nouveauStatut = '…';
+            else if (item.statut === '…') nouveauStatut = '✔️';
+            
+            try {
+                // Mettre à jour via API
+                const response = await fetch(
+                    `https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles?id=eq.${id}`,
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
+                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify({ statut: nouveauStatut })
+                    }
+                );
+                
+                if (response.ok) {
+                    // Recharger
+                    await charger();
+                    document.getElementById('message').innerHTML = "Statut mis à jour!";
+                    document.getElementById('message').style.background = "#d4edda";
+                }
+                
+            } catch (error) {
+                console.error("Erreur:", error);
+                document.getElementById('message').innerHTML = "Erreur: " + error.message;
+                document.getElementById('message').style.background = "#f8d7da";
             }
-        };
+        }
         
-        // Démarrer
-        document.addEventListener('DOMContentLoaded', init);
+        // FONCTION AJOUTER
+        async function ajouter() {
+            const processus = prompt("Nom du processus:");
+            if (!processus) return;
+            
+            const controle = prompt("Nom du contrôle:");
+            if (!controle) return;
+            
+            const responsable = prompt("Responsable:");
+            if (!responsable) return;
+            
+            const nouveau = {
+                id: 'ctrl-' + Date.now(),
+                processus: processus,
+                controle: controle,
+                responsable: responsable,
+                statut: '❌',
+                frequence: 'Mensuel'
+            };
+            
+            try {
+                const response = await fetch(
+                    'https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
+                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify([nouveau])
+                    }
+                );
+                
+                if (response.ok) {
+                    await charger();
+                    document.getElementById('message').innerHTML = "Contrôle ajouté!";
+                    document.getElementById('message').style.background = "#d4edda";
+                }
+                
+            } catch (error) {
+                console.error("Erreur:", error);
+                document.getElementById('message').innerHTML = "Erreur: " + error.message;
+                document.getElementById('message').style.background = "#f8d7da";
+            }
+        }
+        
+        // FONCTION SUPPRIMER
+        async function supprimer() {
+            const id = prompt("ID du contrôle à supprimer (regardez dans la console):");
+            if (!id) return;
+            
+            if (!confirm("Vraiment supprimer le contrôle " + id + " ?")) return;
+            
+            try {
+                const response = await fetch(
+                    `https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles?id=eq.${id}`,
+                    {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
+                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
+                        }
+                    }
+                );
+                
+                if (response.ok) {
+                    await charger();
+                    document.getElementById('message').innerHTML = "Contrôle supprimé!";
+                    document.getElementById('message').style.background = "#d4edda";
+                }
+                
+            } catch (error) {
+                console.error("Erreur:", error);
+                document.getElementById('message').innerHTML = "Erreur: " + error.message;
+                document.getElementById('message').style.background = "#f8d7da";
+            }
+        }
+        
+        // Charger au démarrage
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Page prête!");
+            // charger(); // Décommentez pour charger automatiquement
+        });
     </script>
 </body>
 </html>
