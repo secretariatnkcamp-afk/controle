@@ -1,337 +1,682 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Grille de Contrôle Opérationnel</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-/* Ici on garde ton CSS original (omitted pour la clarté) */
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Grille de Contrôle Opérationnel - Supabase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Ton CSS d'origine — inchangé (mis ici pour être autonome) */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px; min-height:100vh;
+        }
+        .container {
+            max-width: 1800px; margin:0 auto; background:white; border-radius:15px;
+            box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color:white; padding:30px; text-align:center; position:relative;
+        }
+        .header h1 { font-size:28px; margin-bottom:10px; }
+        .header p { font-size:14px; opacity:0.9; }
+        .save-indicator { position:absolute; top:20px; right:30px; padding:8px 16px;
+            border-radius:20px; font-size:13px; font-weight:600; background:rgba(255,255,255,0.2);
+        }
+        .save-indicator.saving { background:#ffc107; color:#000; }
+        .save-indicator.saved { background:#28a745; color:white; }
+        .save-indicator.error { background:#dc3545; color:white; }
+
+        .controls { padding:20px 30px; background:#f8f9fa; border-bottom:2px solid #e9ecef;
+            display:flex; gap:15px; flex-wrap:wrap; align-items:center;
+        }
+        .btn { padding:12px 24px; border:none; border-radius:8px; cursor:pointer;
+            font-size:14px; font-weight:600; transition:all 0.3s; display:flex; align-items:center; gap:8px;
+        }
+        .btn-primary { background:#667eea; color:white; }
+        .btn-primary:hover { background:#5568d3; transform:translateY(-2px); box-shadow:0 5px 15px rgba(102,126,234,0.4); }
+        .btn-success { background:#28a745; color:white; }
+        .btn-warning { background:#ffc107; color:#000; }
+        .btn-danger { background:#dc3545; color:white; }
+        .btn-sm { padding:6px 12px; font-size:12px; }
+
+        .filter-group { display:flex; gap:10px; align-items:center; }
+        .filter-group select, .filter-group input {
+            padding:10px; border:2px solid #e9ecef; border-radius:8px; font-size:14px;
+        }
+
+        .stats { padding:30px; display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px; background:#f8f9fa; }
+        .stat-card { background:white; padding:20px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.1); text-align:center; }
+        .stat-value { font-size:32px; font-weight:700; margin:10px 0; }
+        .stat-label { color:#6c757d; font-size:13px; }
+
+        .table-container { overflow-x:auto; padding:30px; }
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:white; position:sticky; top:0; z-index:10; }
+        th { padding:15px 10px; text-align:left; font-weight:600; border-right:1px solid rgba(255,255,255,0.2); font-size:13px; }
+        th:last-child { border-right:none; }
+        tbody tr { border-bottom:1px solid #e9ecef; }
+        tbody tr:hover { background:#f8f9fa; }
+        td { padding:12px 10px; vertical-align:top; border-right:1px solid #e9ecef; }
+        td:last-child { border-right:none; }
+
+        .process-header { background:#e7f3ff; font-weight:bold; font-size:14px; padding:15px !important; }
+        .control-row { background:white; }
+        .status-badge { display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.3s; }
+        .status-conforme { background:#d4edda; color:#155724; }
+        .status-non-conforme { background:#f8d7da; color:#721c24; }
+        .status-attente { background:#fff3cd; color:#856404; } /* orange pour attente */
+        .comment-icon { cursor:pointer; color:#667eea; font-size:16px; margin-right:5px; }
+        .comment-preview { font-size:11px; color:#6c757d; font-style:italic; }
+        .process-status { font-weight:bold; font-size:13px; padding:8px 15px; border-radius:6px; display:inline-block; margin-left:15px; }
+        .process-conforme { background:#d4edda; color:#155724; }
+        .process-non-conforme { background:#f8d7da; color:#721c24; }
+
+        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); overflow-y:auto; }
+        .modal-content { background:white; margin:5% auto; padding:30px; border-radius:12px; width:90%; max-width:700px; box-shadow:0 10px 40px rgba(0,0,0,0.3); }
+        .modal-header { font-size:20px; font-weight:600; margin-bottom:20px; color:#667eea; }
+        .close { color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer; }
+        .close:hover { color:#000; }
+        .form-group { margin-bottom:20px; }
+        .form-group label { display:block; font-weight:600; margin-bottom:8px; color:#333; }
+        .form-group input, .form-group select, .form-group textarea { width:100%; padding:12px; border:2px solid #e9ecef; border-radius:8px; font-family:inherit; font-size:14px; }
+        .form-group textarea { resize:vertical; min-height:100px; }
+        .modal-footer { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
+        .loading { text-align:center; padding:40px; color:#666; }
+        .error { background:#f8d7da; color:#721c24; padding:15px; border-radius:6px; margin:15px; }
+        .action-buttons { display:flex; gap:5px; }
+        .empty-state { text-align:center; padding:60px 20px; color:#6c757d; }
+        .empty-state-icon { font-size:64px; margin-bottom:20px; }
+        .empty-state h3 { font-size:24px; margin-bottom:10px; }
+
+        @media (max-width:768px) {
+            .controls { flex-direction:column; align-items:stretch; }
+            .filter-group { flex-direction:column; width:100%; }
+            .filter-group select, .filter-group input { width:100%; }
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-    <div class="header">
-        <h1>📊 Grille de Contrôle Opérationnel</h1>
-        <p>Système de gestion et de suivi des contrôles internes</p>
-        <span class="save-indicator" id="saveIndicator"></span>
-    </div>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Grille de Contrôle Opérationnel</h1>
+            <p>Système de gestion et de suivi des contrôles internes</p>
+            <span class="save-indicator" id="saveIndicator"></span>
+        </div>
 
-    <div class="controls">
-        <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Nouveau Processus</button>
-        <button class="btn btn-primary" onclick="openAddControlModal()">➕ Nouveau Contrôle</button>
-        <button class="btn btn-success" onclick="exportToExcel()">📥 Export Excel</button>
-        <button class="btn btn-warning" onclick="toggleStats()">📈 Statistiques</button>
-        <div class="filter-group">
-            <input type="text" id="searchInput" placeholder="🔍 Rechercher..." oninput="filterTable()">
-            <select id="filterProcessus" onchange="filterTable()">
-                <option value="">Tous les processus</option>
-            </select>
-            <select id="filterStatut" onchange="filterTable()">
-                <option value="">Tous les statuts</option>
-                <option value="✔️">Conforme</option>
-                <option value="❌">Non conforme</option>
-            </select>
+        <div class="controls">
+            <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Nouveau Processus</button>
+            <button class="btn btn-primary" onclick="openAddControlModal()">➕ Nouveau Contrôle</button>
+            <button class="btn btn-success" onclick="exportToExcel()">📥 Export Excel</button>
+            <button class="btn btn-warning" onclick="toggleStats()">📈 Statistiques</button>
+            <div class="filter-group">
+                <input type="text" id="searchInput" placeholder="🔍 Rechercher..." oninput="filterTable()">
+                <select id="filterProcessus" onchange="filterTable()">
+                    <option value="">Tous les processus</option>
+                </select>
+                <select id="filterStatut" onchange="filterTable()">
+                    <option value="">Tous les statuts</option>
+                    <option value="✔️">Conforme</option>
+                    <option value="❌">Non conforme</option>
+                    <option value="…">En attente</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="stats" id="statsSection" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-label">Total Processus</div>
+                <div class="stat-value" id="totalProcessus">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Contrôles</div>
+                <div class="stat-value" id="totalControles">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Contrôles Conformes</div>
+                <div class="stat-value" style="color:#28a745;" id="conformes">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Non Conformes</div>
+                <div class="stat-value" style="color:#dc3545;" id="nonConformes">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Taux de Conformité</div>
+                <div class="stat-value" style="color:#667eea;" id="tauxConformite">0%</div>
+            </div>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="table-container">
+            <div id="loadingIndicator" class="loading">⏳ Chargement des données...</div>
+            <div id="emptyState" class="empty-state" style="display:none;">
+                <div class="empty-state-icon">📋</div>
+                <h3>Aucun contrôle pour le moment</h3>
+                <p>Commencez par créer un nouveau processus ou un nouveau contrôle</p><br>
+                <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Créer un processus</button>
+            </div>
+
+            <table id="controlTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th style="width:180px;">Processus / Contrôle</th>
+                        <th style="width:200px;">Description</th>
+                        <th style="width:120px;">Responsable</th>
+                        <th style="width:100px;">Fréquence</th>
+                        <th style="width:100px;">Statut</th>
+                        <th style="width:100px;">Date Vérif.</th>
+                        <th style="width:200px;">Commentaires</th>
+                        <th style="width:120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
         </div>
     </div>
 
-    <div class="stats" id="statsSection" style="display:none;">
-        <div class="stat-card">
-            <div class="stat-label">Total Processus</div>
-            <div class="stat-value" id="totalProcessus">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Total Contrôles</div>
-            <div class="stat-value" id="totalControles">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Contrôles Conformes</div>
-            <div class="stat-value" style="color:#28a745;" id="conformes">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Non Conformes</div>
-            <div class="stat-value" style="color:#dc3545;" id="nonConformes">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Taux de Conformité</div>
-            <div class="stat-value" style="color:#667eea;" id="tauxConformite">0%</div>
+    <!-- Modals -->
+    <div id="commentModal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content">
+            <span class="close" onclick="closeCommentModal()">&times;</span>
+            <div class="modal-header">💬 Commentaire</div>
+            <textarea id="commentText" placeholder="Entrez votre commentaire..." style="width:100%; min-height:120px; padding:12px; border-radius:8px; border:2px solid #e9ecef;"></textarea>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveComment()">Enregistrer</button>
+                <button class="btn" onclick="closeCommentModal()" style="background:#6c757d; color:white;">Annuler</button>
+            </div>
         </div>
     </div>
 
-    <div id="errorContainer"></div>
-
-    <div class="table-container">
-        <div id="loadingIndicator" class="loading">⏳ Chargement des données...</div>
-        <div id="emptyState" class="empty-state" style="display:none;">
-            <div class="empty-state-icon">📋</div>
-            <h3>Aucun contrôle pour le moment</h3>
-            <p>Commencez par créer un nouveau processus ou un nouveau contrôle</p><br>
-            <button class="btn btn-primary" onclick="openAddProcessModal()">➕ Créer un processus</button>
+    <div id="addProcessModal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddProcessModal()">&times;</span>
+            <div class="modal-header">➕ Nouveau Processus</div>
+            <div class="form-group">
+                <label>Nom du Processus *</label>
+                <input type="text" id="processNom" placeholder="Ex: Cycle Achats-Fournisseurs">
+            </div>
+            <div class="form-group">
+                <label>Responsable du Processus</label>
+                <input type="text" id="processResponsable" placeholder="Ex: Pierre Durand">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveProcess()">Créer</button>
+                <button class="btn" onclick="closeAddProcessModal()" style="background:#6c757d; color:white;">Annuler</button>
+            </div>
         </div>
-
-        <table id="controlTable" style="display:none;">
-            <thead>
-                <tr>
-                    <th style="width:180px;">Processus / Contrôle</th>
-                    <th style="width:200px;">Description</th>
-                    <th style="width:120px;">Responsable</th>
-                    <th style="width:100px;">Fréquence</th>
-                    <th style="width:100px;">Statut</th>
-                    <th style="width:100px;">Date Vérif.</th>
-                    <th style="width:200px;">Commentaires</th>
-                    <th style="width:120px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
     </div>
-</div>
 
-<!-- Modals (commentaire, add process, add control) -->
-<!-- Garder le même HTML que ton code actuel pour les modals -->
+    <div id="addControlModal" class="modal" role="dialog" aria-hidden="true">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddControlModal()">&times;</span>
+            <div class="modal-header" id="controlModalTitle">➕ Nouveau Contrôle</div>
+            <div class="form-group">
+                <label>Processus *</label>
+                <select id="controlProcessus">
+                    <option value="">Sélectionnez un processus</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nom du Contrôle *</label>
+                <input type="text" id="controlNom" placeholder="Ex: Émission Bon de Commande">
+            </div>
+            <div class="form-group">
+                <label>Description *</label>
+                <textarea id="controlDescription" placeholder="Description détaillée du contrôle..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Responsable *</label>
+                <input type="text" id="controlResponsable" placeholder="Ex: Sophie Martin">
+            </div>
+            <div class="form-group">
+                <label>Fréquence *</label>
+                <select id="controlFrequence">
+                    <option value="Quotidien">Quotidien</option>
+                    <option value="Hebdomadaire">Hebdomadaire</option>
+                    <option value="Mensuel">Mensuel</option>
+                    <option value="Trimestriel">Trimestriel</option>
+                    <option value="Annuel">Annuel</option>
+                    <option value="Systématique">Systématique</option>
+                    <option value="Ponctuel">Ponctuel</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveControl()">Enregistrer</button>
+                <button class="btn" onclick="closeAddControlModal()" style="background:#6c757d; color:white;">Annuler</button>
+            </div>
+        </div>
+    </div>
 
-<script>
-    // ---------- Supabase ----------
-    const SUPABASE_URL = 'https://<YOUR-PROJECT>.supabase.co'
-    const SUPABASE_ANON_KEY = '<YOUR-ANON-KEY>'
-    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    <script>
+        // ---- REMPLACE ICI AVEC TES IDENTIFIANTS SUPABASE ----
+        const SUPABASE_URL = '<YOUR-SUPABASE-URL>';
+        const SUPABASE_ANON_KEY = '<YOUR-ANON-KEY>';
+        // ----------------------------------------------------
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    let controles = []
-    let processus = []
-    let currentCommentId = null
-    let currentEditId = null
+        // état
+        let controles = []
+        let processus = []
+        let currentCommentId = null
+        let currentEditId = null
 
-    function showSaveIndicator(status) {
-        const indicator = document.getElementById('saveIndicator')
-        indicator.className = 'save-indicator ' + status
-        if (status === 'saving') indicator.textContent = '💾 Sauvegarde...'
-        else if (status === 'saved') {
-            indicator.textContent = '✅ Sauvegardé'
-            setTimeout(()=>{ indicator.className = 'save-indicator'; indicator.textContent = '' }, 1200)
-        } else if (status === 'error') {
-            indicator.textContent = '❌ Erreur'
-            setTimeout(()=>{ indicator.className = 'save-indicator'; indicator.textContent = '' }, 2000)
+        // util
+        function escapeHtml(str){
+            if (str === null || str === undefined) return ''
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;")
         }
-    }
 
-    function showError(message) {
-        const container = document.getElementById('errorContainer')
-        container.innerHTML = `<div class="error">⚠️ ${message}</div>`
-        setTimeout(()=>{ container.innerHTML = '' }, 5000)
-    }
-
-    // ---------- Load données Supabase ----------
-    async function loadData() {
-        document.getElementById('loadingIndicator').style.display = 'block'
-        const { data, error } = await supabase.from('controles').select('*').order('ordre', {ascending:true})
-        if (error) return showError(error.message)
-        controles = data || []
-        processus = Array.from(new Set(controles.map(c => c.processus)))
-        renderTable(controles)
-        updateStats()
-        updateFilterOptions()
-        document.getElementById('loadingIndicator').style.display = 'none'
-        document.getElementById('emptyState').style.display = controles.length===0?'block':'none'
-        document.getElementById('controlTable').style.display = controles.length===0?'none':'table'
-    }
-
-    // ---------- Save control (Supabase) ----------
-    async function saveControl() {
-        const processusVal = document.getElementById('controlProcessus').value.trim()
-        const nom = document.getElementById('controlNom').value.trim()
-        const desc = document.getElementById('controlDescription').value.trim()
-        const resp = document.getElementById('controlResponsable').value.trim()
-        const frequence = document.getElementById('controlFrequence').value
-
-        if (!processusVal) return showError('Veuillez sélectionner un processus.')
-        if (!nom) return showError('Le nom du contrôle est requis.')
-        if (!resp) return showError('Le responsable est requis.')
-
-        showSaveIndicator('saving')
-
-        if (currentEditId) {
-            const { error } = await supabase.from('controles').update({
-                processus: processusVal,
-                controle: nom,
-                description: desc,
-                responsable: resp,
-                frequence: frequence
-            }).eq('id', currentEditId)
-            if (error) { showSaveIndicator('error'); return showError(error.message) }
-        } else {
-            const { error } = await supabase.from('controles').insert([{
-                processus: processusVal,
-                controle: nom,
-                description: desc,
-                responsable: resp,
-                frequence: frequence,
-                statut: '❌',
-                commentaire: '',
-                date_verification: null
-            }])
-            if (error) { showSaveIndicator('error'); return showError(error.message) }
+        function showSaveIndicator(status) {
+            const indicator = document.getElementById('saveIndicator')
+            indicator.className = 'save-indicator ' + status
+            if (status === 'saving') indicator.textContent = '💾 Sauvegarde...'
+            else if (status === 'saved') {
+                indicator.textContent = '✅ Sauvegardé'
+                setTimeout(()=>{ indicator.className = 'save-indicator'; indicator.textContent = '' }, 1200)
+            } else if (status === 'error') {
+                indicator.textContent = '❌ Erreur'
+                setTimeout(()=>{ indicator.className = 'save-indicator'; indicator.textContent = '' }, 2000)
+            }
         }
 
-        currentEditId = null
-        closeAddControlModal()
-        await loadData()
-        showSaveIndicator('saved')
-    }
+        function showError(message) {
+            const container = document.getElementById('errorContainer')
+            container.innerHTML = `<div class="error">⚠️ ${escapeHtml(message)}</div>`
+            setTimeout(()=>{ container.innerHTML = '' }, 5000)
+        }
 
-    // ---------- Update statut ----------
-    async function toggleStatus(id) {
-        const ctrl = controles.find(c => c.id===id)
-        if (!ctrl) return
-        const newStatut = ctrl.statut==='❌'?'✔️':'❌'
-        const { error } = await supabase.from('controles').update({ statut: newStatut }).eq('id', id)
-        if (error) return showError(error.message)
-        await loadData()
-    }
+        // ---- Chargement des données depuis Supabase ----
+        async function loadData() {
+            try {
+                document.getElementById('loadingIndicator').style.display = 'block'
+                const { data, error } = await supabase
+                    .from('controles')
+                    .select('*')
+                    .order('processus', { ascending: true })
+                    .order('ordre', { ascending: true })
+                if (error) throw error
+                controles = data || []
+                processus = Array.from(new Set(controles.map(c => c.processus).filter(Boolean)))
+                updateFilterOptions()
+                renderTable(controles)
+                updateStats()
+                document.getElementById('emptyState').style.display = controles.length === 0 ? 'block' : 'none'
+                document.getElementById('controlTable').style.display = controles.length === 0 ? 'none' : 'table'
+            } catch (e) {
+                showError(e.message || 'Erreur lors du chargement des données.')
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none'
+            }
+        }
 
-    // ---------- Update date ----------
-    async function updateDate(id) {
-        const today = new Date().toISOString().split('T')[0]
-        const { error } = await supabase.from('controles').update({ date_verification: today }).eq('id', id)
-        if (error) return showError(error.message)
-        await loadData()
-    }
+        // ---- Processus: open/save ----
+        function openAddProcessModal() {
+            document.getElementById('processNom').value = ''
+            document.getElementById('processResponsable').value = ''
+            document.getElementById('addProcessModal').style.display = 'block'
+        }
+        function closeAddProcessModal() { document.getElementById('addProcessModal').style.display = 'none' }
+        async function saveProcess() {
+            const nom = document.getElementById('processNom').value.trim()
+            const responsable = document.getElementById('processResponsable').value.trim()
+            if (!nom) return showError('Le nom du processus est requis.')
+            try {
+                // pas d'objet processus séparé dans ta DB => on peut juste ajouter le nom localement pour proposer dans select
+                if (!processus.includes(nom)) {
+                    processus.push(nom)
+                    updateFilterOptions()
+                    showSaveIndicator('saved')
+                } else showError('Processus déjà existant.')
+            } catch (e) { showError(e.message) }
+            closeAddProcessModal()
+        }
 
-    // ---------- Commentaire ----------
-    async function saveComment() {
-        if (!currentCommentId) return closeCommentModal()
-        const texte = document.getElementById('commentText').value
-        const { error } = await supabase.from('controles').update({ commentaire: texte }).eq('id', currentCommentId)
-        if (error) return showError(error.message)
-        closeCommentModal()
-        await loadData()
-    }
+        // ---- Controls create/edit ----
+        function openAddControlModal() {
+            currentEditId = null
+            document.getElementById('controlModalTitle').textContent = '➕ Nouveau Contrôle'
+            document.getElementById('controlProcessus').value = ''
+            document.getElementById('controlNom').value = ''
+            document.getElementById('controlDescription').value = ''
+            document.getElementById('controlResponsable').value = ''
+            document.getElementById('controlFrequence').value = 'Mensuel'
+            updateFilterOptions()
+            document.getElementById('addControlModal').style.display = 'block'
+        }
+        function closeAddControlModal() {
+            currentEditId = null
+            document.getElementById('addControlModal').style.display = 'none'
+        }
 
-    // ---------- Delete ----------
-    async function deleteControl(id) {
-        if (!confirm('Voulez-vous vraiment supprimer ce contrôle ?')) return
-        const { error } = await supabase.from('controles').delete().eq('id', id)
-        if (error) return showError(error.message)
-        await loadData()
-    }
+        async function saveControl() {
+            const processusVal = document.getElementById('controlProcessus').value.trim()
+            const nom = document.getElementById('controlNom').value.trim()
+            const desc = document.getElementById('controlDescription').value.trim()
+            const resp = document.getElementById('controlResponsable').value.trim()
+            const frequence = document.getElementById('controlFrequence').value
 
-    async function deleteProcess(processName) {
-        if (!confirm(`Supprimer tous les contrôles du processus "${processName}" ?`)) return
-        const { error } = await supabase.from('controles').delete().eq('processus', processName)
-        if (error) return showError(error.message)
-        await loadData()
-    }
+            if (!processusVal) return showError('Veuillez sélectionner un processus.')
+            if (!nom) return showError('Le nom du contrôle est requis.')
+            if (!resp) return showError('Le responsable est requis.')
 
-    // ---------- Render Table (inchangé) ----------
-    function renderTable(list = controles) {
-        const tbody = document.getElementById('tableBody')
-        tbody.innerHTML = ''
-        if (!list || list.length === 0) return
-        let currentProcess = null
-        const sorted = [...list].sort((a,b)=> (a.processus||'').localeCompare(b.processus||''))
-        for (const ctrl of sorted) {
-            if (ctrl.processus !== currentProcess) {
-                currentProcess = ctrl.processus
-                const processControls = sorted.filter(c => c.processus === currentProcess)
-                const conformeCount = processControls.filter(c => c.statut==='✔️').length
-                const totalCount = processControls.length
-                const allConforme = conformeCount===totalCount && totalCount>0
-                const statusClass = allConforme?'process-conforme':'process-non-conforme'
-                const statusText = allConforme?'✔️ Processus Conforme':'❌ Processus Non Conforme'
-                const headerRow = document.createElement('tr')
-                headerRow.className = 'process-header'
-                headerRow.innerHTML = `
-                    <td colspan="8">
-                        <strong>${currentProcess}</strong>
-                        <span class="process-status ${statusClass}">${statusText}</span>
-                        <button class="btn btn-danger btn-sm" style="float:right;" onclick="deleteProcess(${JSON.stringify(currentProcess)})">🗑️ Supprimer processus</button>
+            showSaveIndicator('saving')
+            try {
+                if (currentEditId) {
+                    const { error } = await supabase.from('controles').update({
+                        processus: processusVal,
+                        controle: nom,
+                        description: desc,
+                        responsable: resp,
+                        frequence: frequence
+                    }).eq('id', currentEditId)
+                    if (error) throw error
+                } else {
+                    const { error } = await supabase.from('controles').insert([{
+                        processus: processusVal,
+                        controle: nom,
+                        description: desc,
+                        responsable: resp,
+                        frequence: frequence,
+                        statut: '❌',
+                        commentaire: '',
+                        date_verification: null
+                    }])
+                    if (error) throw error
+                }
+                currentEditId = null
+                closeAddControlModal()
+                await loadData()
+                showSaveIndicator('saved')
+            } catch (e) {
+                showSaveIndicator('error')
+                showError(e.message || 'Erreur lors de la sauvegarde.')
+            }
+        }
+
+        // ---- Statut: cycle ❌ -> … -> ✔️ -> ❌ ----
+        async function toggleStatus(id) {
+            try {
+                const ctrl = controles.find(c => c.id === id)
+                if (!ctrl) return
+                let next
+                if (!ctrl.statut || ctrl.statut === '❌') next = '…'
+                else if (ctrl.statut === '…') next = '✔️'
+                else next = '❌'
+                showSaveIndicator('saving')
+                const { error } = await supabase.from('controles').update({ statut: next }).eq('id', id)
+                if (error) throw error
+                await loadData()
+                showSaveIndicator('saved')
+            } catch (e) {
+                showSaveIndicator('error'); showError(e.message || 'Erreur statut')
+            }
+        }
+
+        // ---- Date vérification ----
+        async function updateDate(id) {
+            try {
+                const today = new Date().toISOString().split('T')[0]
+                showSaveIndicator('saving')
+                const { error } = await supabase.from('controles').update({ date_verification: today }).eq('id', id)
+                if (error) throw error
+                await loadData()
+                showSaveIndicator('saved')
+            } catch (e) {
+                showSaveIndicator('error'); showError(e.message || 'Erreur date')
+            }
+        }
+
+        // ---- Commentaires ----
+        window.openCommentModal = function(id) {
+            currentCommentId = id
+            const ctrl = controles.find(c => c.id === id)
+            document.getElementById('commentText').value = ctrl?.commentaire || ''
+            document.getElementById('commentModal').style.display = 'block'
+        }
+        function closeCommentModal() {
+            currentCommentId = null
+            document.getElementById('commentText').value = ''
+            document.getElementById('commentModal').style.display = 'none'
+        }
+        async function saveComment() {
+            if (!currentCommentId) return closeCommentModal()
+            try {
+                const texte = document.getElementById('commentText').value
+                showSaveIndicator('saving')
+                const { error } = await supabase.from('controles').update({ commentaire: texte }).eq('id', currentCommentId)
+                if (error) throw error
+                await loadData()
+                closeCommentModal()
+                showSaveIndicator('saved')
+            } catch (e) {
+                showSaveIndicator('error'); showError(e.message || 'Erreur commentaire')
+            }
+        }
+
+        // ---- Edit / Delete ----
+        window.editControl = function(id) {
+            const ctrl = controles.find(c => c.id === id)
+            if (!ctrl) return showError('Contrôle introuvable.')
+            currentEditId = id
+            document.getElementById('controlModalTitle').textContent = '✏️ Modifier Contrôle'
+            document.getElementById('controlProcessus').value = ctrl.processus || ''
+            document.getElementById('controlNom').value = ctrl.controle || ''
+            document.getElementById('controlDescription').value = ctrl.description || ''
+            document.getElementById('controlResponsable').value = ctrl.responsable || ''
+            document.getElementById('controlFrequence').value = ctrl.frequence || 'Mensuel'
+            document.getElementById('addControlModal').style.display = 'block'
+            updateFilterOptions()
+        }
+
+        async function deleteControl(id) {
+            if (!confirm('Voulez-vous vraiment supprimer ce contrôle ?')) return
+            try {
+                showSaveIndicator('saving')
+                const { error } = await supabase.from('controles').delete().eq('id', id)
+                if (error) throw error
+                await loadData()
+                showSaveIndicator('saved')
+            } catch (e) {
+                showSaveIndicator('error'); showError(e.message || 'Erreur suppression')
+            }
+        }
+
+        async function deleteProcess(processName) {
+            if (!processName) return
+            if (!confirm(`Supprimer tous les contrôles du processus "${processName}" ?`)) return
+            try {
+                showSaveIndicator('saving')
+                const { error } = await supabase.from('controles').delete().eq('processus', processName)
+                if (error) throw error
+                await loadData()
+                showSaveIndicator('saved')
+            } catch (e) {
+                showSaveIndicator('error'); showError(e.message || 'Erreur suppression processus')
+            }
+        }
+
+        // ---- Render table ----
+        function renderTable(list = controles) {
+            const tbody = document.getElementById('tableBody')
+            tbody.innerHTML = ''
+
+            if (!list || list.length === 0) {
+                document.getElementById('controlTable').style.display = 'none'
+                document.getElementById('emptyState').style.display = 'block'
+                return
+            } else {
+                document.getElementById('controlTable').style.display = 'table'
+                document.getElementById('emptyState').style.display = 'none'
+            }
+
+            let currentProcess = null
+            const sorted = [...list].sort((a,b) => {
+                const ap = (a.processus||'').toLowerCase(), bp = (b.processus||'').toLowerCase()
+                if (ap < bp) return -1
+                if (ap > bp) return 1
+                return 0
+            })
+
+            for (const ctrl of sorted) {
+                if (ctrl.processus !== currentProcess) {
+                    currentProcess = ctrl.processus
+                    const processControls = sorted.filter(c => c.processus === currentProcess)
+                    const conformeCount = processControls.filter(c => c.statut === '✔️').length
+                    const totalCount = processControls.length
+                    const allConforme = conformeCount === totalCount && totalCount > 0
+                    const statusClass = allConforme ? 'process-conforme' : 'process-non-conforme'
+                    const statusText = allConforme ? '✔️ Processus Conforme' : '❌ Processus Non Conforme'
+
+                    const headerRow = document.createElement('tr')
+                    headerRow.className = 'process-header'
+                    headerRow.dataset.processus = currentProcess
+                    headerRow.innerHTML = `
+                        <td colspan="8">
+                            <strong>${escapeHtml(currentProcess || 'Non défini')}</strong> - Responsable: ${escapeHtml(ctrl.responsable || 'Non défini')}
+                            <span class="process-status ${statusClass}">${statusText}</span>
+                            <button class="btn btn-danger btn-sm" style="float:right;" onclick='deleteProcess(${JSON.stringify(currentProcess)})'>🗑️ Supprimer processus</button>
+                        </td>
+                    `
+                    tbody.appendChild(headerRow)
+                }
+
+                const row = document.createElement('tr')
+                row.className = 'control-row'
+                row.dataset.id = ctrl.id
+                row.dataset.processus = ctrl.processus
+                row.dataset.statut = ctrl.statut
+
+                const isConforme = ctrl.statut === '✔️'
+                let statusBadgeClass = 'status-non-conforme'
+                if (ctrl.statut === '✔️') statusBadgeClass = 'status-conforme'
+                else if (ctrl.statut === '…') statusBadgeClass = 'status-attente'
+
+                const commentPreview = ctrl.commentaire ? (ctrl.commentaire.length > 40 ? escapeHtml(ctrl.commentaire.substring(0,40) + '...') : escapeHtml(ctrl.commentaire)) : ''
+
+                row.innerHTML = `
+                    <td><strong>${escapeHtml(ctrl.controle || 'Sans nom')}</strong></td>
+                    <td>${escapeHtml(ctrl.description || '')}</td>
+                    <td>${escapeHtml(ctrl.responsable || '')}</td>
+                    <td>${escapeHtml(ctrl.frequence || 'N/A')}</td>
+                    <td><span class="status-badge ${statusBadgeClass}" onclick='toggleStatus(${JSON.stringify(ctrl.id)})'>${escapeHtml(ctrl.statut || '')}</span></td>
+                    <td onclick='updateDate(${JSON.stringify(ctrl.id)})' style="cursor:pointer;">${escapeHtml(ctrl.date_verification || 'N/A')}</td>
+                    <td>
+                        <span class="comment-icon" onclick='openCommentModal(${JSON.stringify(ctrl.id)})'>💬</span>
+                        <span class="comment-preview">${commentPreview}</span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-primary btn-sm" onclick='editControl(${JSON.stringify(ctrl.id)})'>✏️</button>
+                            <button class="btn btn-danger btn-sm" onclick='deleteControl(${JSON.stringify(ctrl.id)})'>🗑️</button>
+                        </div>
                     </td>
                 `
-                tbody.appendChild(headerRow)
+                tbody.appendChild(row)
             }
-            const isConforme = ctrl.statut==='✔️'
-            const statusClass = isConforme?'status-conforme':'status-non-conforme'
-            const commentPreview = ctrl.commentaire ? (ctrl.commentaire.length>40?ctrl.commentaire.substring(0,40)+'...':ctrl.commentaire) : ''
-            const row = document.createElement('tr')
-            row.className='control-row'
-            row.innerHTML=`
-                <td><strong>${ctrl.controle||''}</strong></td>
-                <td>${ctrl.description||''}</td>
-                <td>${ctrl.responsable||''}</td>
-                <td>${ctrl.frequence||''}</td>
-                <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut||''}</span></td>
-                <td onclick="updateDate('${ctrl.id}')" style="cursor:pointer;">${ctrl.date_verification||'N/A'}</td>
-                <td>
-                    <span class="comment-icon" onclick="openCommentModal('${ctrl.id}')">💬</span>
-                    <span class="comment-preview">${commentPreview}</span>
-                </td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn btn-primary btn-sm" onclick="editControl('${ctrl.id}')">✏️</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteControl('${ctrl.id}')">🗑️</button>
-                    </div>
-                </td>
-            `
-            tbody.appendChild(row)
         }
-    }
 
-    // ---------- Stats ----------
-    function updateStats() {
-        const totalProcessusCount = Array.from(new Set(controles.map(c=>c.processus))).length
-        const totalControlesCount = controles.length
-        const conformesCount = controles.filter(c=>c.statut==='✔️').length
-        const nonConformesCount = controles.filter(c=>c.statut==='❌').length
-        const tauxConformite = totalControlesCount>0?Math.round(conformesCount/totalControlesCount*100):0
-        document.getElementById('totalProcessus').textContent=totalProcessusCount
-        document.getElementById('totalControles').textContent=totalControlesCount
-        document.getElementById('conformes').textContent=conformesCount
-        document.getElementById('nonConformes').textContent=nonConformesCount
-        document.getElementById('tauxConformite').textContent=tauxConformite+'%'
-    }
+        // ---- Stats & filters ----
+        function updateStats() {
+            const totalProcessusCount = Array.from(new Set(controles.map(c=>c.processus))).filter(Boolean).length
+            const totalControlesCount = controles.length
+            const conformesCount = controles.filter(c => c.statut === '✔️').length
+            const nonConformesCount = controles.filter(c => c.statut === '❌').length
+            const tauxConformite = totalControlesCount > 0 ? Math.round((conformesCount / totalControlesCount) * 100) : 0
 
-    function updateFilterOptions() {
-        const select = document.getElementById('filterProcessus')
-        select.innerHTML = '<option value="">Tous les processus</option>'
-        Array.from(new Set(controles.map(c=>c.processus))).forEach(p=>{
-            const option=document.createElement('option')
-            option.value=p
-            option.textContent=p
-            select.appendChild(option)
-        })
-    }
+            document.getElementById('totalProcessus').textContent = totalProcessusCount
+            document.getElementById('totalControles').textContent = totalControlesCount
+            document.getElementById('conformes').textContent = conformesCount
+            document.getElementById('nonConformes').textContent = nonConformesCount
+            document.getElementById('tauxConformite').textContent = tauxConformite + '%'
+        }
 
-    // ---------- Filtrage ----------
-    function filterTable() {
-        const q=document.getElementById('searchInput').value.toLowerCase()
-        const procFilter=document.getElementById('filterProcessus').value
-        const statFilter=document.getElementById('filterStatut').value
-        const filtered=controles.filter(c=>{
-            let ok=true
-            if(procFilter) ok=ok && c.processus===procFilter
-            if(statFilter) ok=ok && c.statut===statFilter
-            if(q) ok=ok && `${c.processus||''} ${c.controle||''} ${c.description||''} ${c.responsable||''} ${c.commentaire||''}`.toLowerCase().includes(q)
-            return ok
-        })
-        renderTable(filtered)
-    }
+        function updateFilterOptions() {
+            const select = document.getElementById('filterProcessus')
+            select.innerHTML = '<option value="">Tous les processus</option>'
+            const controlSelect = document.getElementById('controlProcessus')
+            controlSelect.innerHTML = '<option value="">Sélectionnez un processus</option>'
 
-    // ---------- Export Excel ----------
-    function exportToExcel() {
-        if(!controles.length) return showError('Aucun contrôle à exporter.')
-        const wsData = controles.map(c=>({
-            Processus:c.processus, Controle:c.controle, Description:c.description,
-            Responsable:c.responsable, Frequence:c.frequence, Statut:c.statut,
-            Date_Verification:c.date_verification, Commentaire:c.commentaire
-        }))
-        const wb=XLSX.utils.book_new()
-        const ws=XLSX.utils.json_to_sheet(wsData)
-        XLSX.utils.book_append_sheet(wb,ws,'Controles')
-        XLSX.writeFile(wb,'grille_controle_operationnel.xlsx')
-    }
+            const setP = Array.from(new Set(controles.map(c => c.processus).filter(Boolean)))
+            setP.forEach(proc => {
+                const option = document.createElement('option')
+                option.value = proc
+                option.textContent = proc
+                select.appendChild(option)
 
-    // ---------- Init ----------
-    loadData()
-</script>
+                const option2 = document.createElement('option')
+                option2.value = proc
+                option2.textContent = proc
+                controlSelect.appendChild(option2)
+            })
+        }
+
+        // ---- Filtrage / recherche ----
+        function filterTable() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase()
+            const processFilter = document.getElementById('filterProcessus').value
+            const statutFilter = document.getElementById('filterStatut').value
+
+            const filtered = controles.filter(c => {
+                let ok = true
+                if (processFilter) ok = ok && (c.processus === processFilter)
+                if (statutFilter) ok = ok && (c.statut === statutFilter)
+                if (q) {
+                    const hay = `${c.processus || ''} ${c.controle || ''} ${c.description || ''} ${c.responsable || ''} ${c.commentaire || ''}`.toLowerCase()
+                    ok = ok && hay.includes(q)
+                }
+                return ok
+            })
+            renderTable(filtered)
+            document.getElementById('emptyState').style.display = filtered.length === 0 ? 'block' : 'none'
+            document.getElementById('controlTable').style.display = filtered.length === 0 ? 'none' : 'table'
+        }
+
+        // ---- Export Excel ----
+        function exportToExcel() {
+            if (!controles || controles.length === 0) return showError('Aucun contrôle à exporter.')
+            const wsData = controles.map(c => ({
+                Processus: c.processus || '',
+                Controle: c.controle || '',
+                Description: c.description || '',
+                Responsable: c.responsable || '',
+                Frequence: c.frequence || '',
+                Statut: c.statut || '',
+                Date_Verification: c.date_verification || '',
+                Commentaire: c.commentaire || ''
+            }))
+            const wb = XLSX.utils.book_new()
+            const ws = XLSX.utils.json_to_sheet(wsData)
+            XLSX.utils.book_append_sheet(wb, ws, 'Controles')
+            XLSX.writeFile(wb, 'grille_controle_operationnel.xlsx')
+        }
+
+        // ---- UI helpers ----
+        function toggleStats() {
+            const el = document.getElementById('statsSection')
+            el.style.display = el.style.display === 'none' ? 'grid' : 'none'
+        }
+
+        // Close modals on outside click
+        window.onclick = function(event) {
+            const modals = ['addControlModal','addProcessModal','commentModal']
+            modals.forEach(id => {
+                const modal = document.getElementById(id)
+                if (event.target === modal) modal.style.display = 'none'
+            })
+        }
+
+        // ---- Initialisation ----
+        loadData()
+    </script>
 </body>
 </html>
