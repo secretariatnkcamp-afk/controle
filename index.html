@@ -67,6 +67,7 @@
         .status-badge { display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.3s; }
         .status-conforme { background:#d4edda; color:#155724; }
         .status-non-conforme { background:#f8d7da; color:#721c24; }
+        .status-attente { background:#fff3cd; color:#856404; } /* orange pour attente */
         .comment-icon { cursor:pointer; color:#667eea; font-size:16px; margin-right:5px; }
         .comment-preview { font-size:11px; color:#6c757d; font-style:italic; }
         .process-status { font-weight:bold; font-size:13px; padding:8px 15px; border-radius:6px; display:inline-block; margin-left:15px; }
@@ -119,6 +120,7 @@
                     <option value="">Tous les statuts</option>
                     <option value="✔️">Conforme</option>
                     <option value="❌">Non conforme</option>
+                    <option value="…">En attente</option>
                 </select>
             </div>
         </div>
@@ -311,6 +313,7 @@
         // ---------- Init & Load ----------
         function init() {
             loadFromStorage()
+            extractProcessus()
             updateFilterOptions()
             renderTable(controles)
             updateStats()
@@ -461,12 +464,11 @@
                     headerRow.className = 'process-header'
                     headerRow.dataset.processus = currentProcess
 
-                    // Use JSON.stringify to safely pass the process name to inline onclick
                     headerRow.innerHTML = `
                         <td colspan="8">
                             <strong>${escapeHtml(currentProcess || 'Non défini')}</strong> - Responsable: ${escapeHtml(ctrl.responsable || 'Non défini')}
                             <span class="process-status ${statusClass}">${statusText}</span>
-                            <button class="btn btn-danger btn-sm" style="float:right;" onclick="deleteProcess(${JSON.stringify(currentProcess)})">🗑️ Supprimer processus</button>
+                            <button class="btn btn-danger btn-sm" style="float:right;" onclick='deleteProcess(${JSON.stringify(currentProcess)})'>🗑️ Supprimer processus</button>
                         </td>
                     `
                     tbody.appendChild(headerRow)
@@ -478,8 +480,11 @@
                 row.dataset.processus = ctrl.processus
                 row.dataset.statut = ctrl.statut
 
-                const isConforme = ctrl.statut === '✔️'
-                const statusClass = isConforme ? 'status-conforme' : 'status-non-conforme'
+                // determine badge class for three states
+                let statusBadgeClass = 'status-non-conforme'
+                if (ctrl.statut === '✔️') statusBadgeClass = 'status-conforme'
+                else if (ctrl.statut === '…') statusBadgeClass = 'status-attente'
+
                 const commentPreview = ctrl.commentaire ? (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0,40) + '...' : ctrl.commentaire) : ''
 
                 row.innerHTML = `
@@ -487,16 +492,16 @@
                     <td>${escapeHtml(ctrl.description || '')}</td>
                     <td>${escapeHtml(ctrl.responsable || '')}</td>
                     <td>${escapeHtml(ctrl.frequence || 'N/A')}</td>
-                    <td><span class="status-badge ${statusClass}" onclick="toggleStatus(${JSON.stringify(ctrl.id)})">${escapeHtml(ctrl.statut || '')}</span></td>
-                    <td onclick="updateDate(${JSON.stringify(ctrl.id)})" style="cursor:pointer;">${escapeHtml(ctrl.date_verification || 'N/A')}</td>
+                    <td><span class="status-badge ${statusBadgeClass}" onclick='toggleStatus(${JSON.stringify(ctrl.id)})'>${escapeHtml(ctrl.statut || '')}</span></td>
+                    <td onclick='updateDate(${JSON.stringify(ctrl.id)})' style="cursor:pointer;">${escapeHtml(ctrl.date_verification || 'N/A')}</td>
                     <td>
-                        <span class="comment-icon" onclick="openCommentModal(${JSON.stringify(ctrl.id)})">💬</span>
+                        <span class="comment-icon" onclick='openCommentModal(${JSON.stringify(ctrl.id)})'>💬</span>
                         <span class="comment-preview">${escapeHtml(commentPreview)}</span>
                     </td>
                     <td>
                         <div class="action-buttons">
-                            <button class="btn btn-primary btn-sm" onclick="editControl(${JSON.stringify(ctrl.id)})">✏️</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteControl(${JSON.stringify(ctrl.id)})">🗑️</button>
+                            <button class="btn btn-primary btn-sm" onclick='editControl(${JSON.stringify(ctrl.id)})'>✏️</button>
+                            <button class="btn btn-danger btn-sm" onclick='deleteControl(${JSON.stringify(ctrl.id)})'>🗑️</button>
                         </div>
                     </td>
                 `
@@ -551,7 +556,11 @@
         window.toggleStatus = function(id) {
             const ctrl = controles.find(c => c.id === id)
             if (!ctrl) return
-            ctrl.statut = ctrl.statut === '❌' ? '✔️' : '❌'
+            // cycle through 3 states: ❌ -> … -> ✔️ -> ❌ ...
+            if (ctrl.statut === '❌' || !ctrl.statut) ctrl.statut = '…'
+            else if (ctrl.statut === '…') ctrl.statut = '✔️'
+            else ctrl.statut = '❌'
+
             saveControleLocal(ctrl)
             extractProcessus()
             updateFilterOptions()
