@@ -1,127 +1,237 @@
-// Chargement initial
-async function loadData() {
-    document.getElementById('loadingIndicator').style.display = 'block'
-    document.getElementById('emptyState').style.display = 'none'
-    document.getElementById('controlTable').style.display = 'none'
-
-    try {
-        const { data, error } = await supabase
-            .from('controles')
-            .select('*')
-            .order('processus', { ascending: true }) // tri principal
-            .order('ordre', { ascending: true })    // tri secondaire
-
-        if (error) throw error
-
-        controles = data || []
-        extractProcessus()        // Mettre à jour la liste des processus
-        renderTable()             // Afficher le tableau
-        updateStats()             // Mettre à jour les statistiques
-        updateFilterOptions()     // Mettre à jour les filtres
-
-        document.getElementById('loadingIndicator').style.display = 'none'
-
-        if (controles.length === 0) {
-            document.getElementById('emptyState').style.display = 'block'
-        } else {
-            document.getElementById('controlTable').style.display = 'table'
+<invoke name="artifacts">
+<parameter name="command">update</parameter>
+<parameter name="id">grille_controle_crud</parameter>
+<parameter name="old_str">            document.getElementById('controlProcessus').value = ctrl.</parameter>
+<parameter name="new_str">            document.getElementById('controlProcessus').value = ctrl.processus
+            document.getElementById('controlNom').value = ctrl.controle
+            document.getElementById('controlDescription').value = ctrl.description
+            document.getElementById('controlResponsable').value = ctrl.responsable
+            document.getElementById('controlFrequence').value = ctrl.frequence
+            
+            document.getElementById('addControlModal').style.display = 'block'
         }
 
-    } catch (err) {
-        console.error(err)
-        showError('Impossible de charger les données. Vérifiez la connexion Supabase.')
-        document.getElementById('loadingIndicator').style.display = 'none'
-    }
-}
+        // Sauvegarder contrôle
+        window.saveControl = async function() {
+            const processus = document.getElementById('controlProcessus').value.trim()
+            const nom = document.getElementById('controlNom').value.trim()
+            const description = document.getElementById('controlDescription').value.trim()
+            const responsable = document.getElementById('controlResponsable').value.trim()
+            const frequence = document.getElementById('controlFrequence').value
 
-// Extraire la liste des processus uniques
-function extractProcessus() {
-    const processusSet = new Set()
-    controles.forEach(ctrl => {
-        if (ctrl.processus) {
-            processusSet.add(ctrl.processus)
-        }
-    })
-    processus = Array.from(processusSet)
-}
+            if (!processus || !nom || !description || !responsable) {
+                alert('Veuillez remplir tous les champs obligatoires')
+                return
+            }
 
-// Mettre à jour les filtres des processus
-function updateFilterOptions() {
-    const select = document.getElementById('filterProcessus')
-    select.innerHTML = '<option value="">Tous les processus</option>'
-    processus.forEach(proc => {
-        const option = document.createElement('option')
-        option.value = proc
-        option.textContent = proc
-        select.appendChild(option)
-    })
-}
+            showSaveIndicator('saving')
+            try {
+                if (currentEditId) {
+                    // Modification
+                    const { error } = await supabase
+                        .from('controles')
+                        .update({
+                            processus,
+                            controle: nom,
+                            description,
+                            responsable,
+                            frequence
+                        })
+                        .eq('id', currentEditId)
 
-// Rendu du tableau
-function renderTable() {
-    const tbody = document.getElementById('tableBody')
-    tbody.innerHTML = ''
+                    if (error) throw error
+                } else {
+                    // Création
+                    const { error } = await supabase
+                        .from('controles')
+                        .insert({
+                            processus,
+                            controle: nom,
+                            description,
+                            responsable,
+                            frequence,
+                            statut: '❌',
+                            commentaire: '',
+                            date_verification: new Date().toISOString().split('T')[0],
+                            ordre: controles.length + 1
+                        })
 
-    if (controles.length === 0) return
+                    if (error) throw error
+                }
 
-    let currentProcess = ''
-    controles.forEach(ctrl => {
-        // Ligne d'entête pour chaque processus
-        if (ctrl.processus !== currentProcess) {
-            currentProcess = ctrl.processus
-            const processControls = controles.filter(c => c.processus === currentProcess)
-            const conformeCount = processControls.filter(c => c.statut === '✔️').length
-            const totalCount = processControls.length
-            const allConforme = conformeCount === totalCount && totalCount > 0
-            const statusClass = allConforme ? 'process-conforme' : 'process-non-conforme'
-            const statusText = allConforme ? '✔️ Processus Conforme' : '❌ Processus Non Conforme'
-
-            const headerRow = document.createElement('tr')
-            headerRow.className = 'process-header'
-            headerRow.innerHTML = `
-                <td colspan="8">
-                    <strong>${currentProcess}</strong> - Responsable: ${ctrl.responsable || 'Non défini'}
-                    <span class="process-status ${statusClass}">${statusText}</span>
-                    <button class="btn btn-danger btn-sm" style="float: right;" onclick="deleteProcess('${currentProcess}')">🗑️ Supprimer processus</button>
-                </td>
-            `
-            tbody.appendChild(headerRow)
+                showSaveIndicator('saved')
+                closeAddControlModal()
+                await loadData()
+            } catch (err) {
+                console.error(err)
+                showSaveIndicator('error')
+                showError('Erreur lors de l\'enregistrement du contrôle')
+            }
         }
 
-        // Ligne de contrôle
-        const row = document.createElement('tr')
-        row.className = 'control-row'
-        row.dataset.id = ctrl.id
-        row.dataset.processus = ctrl.processus
-        row.dataset.statut = ctrl.statut
+        // Supprimer un contrôle
+        window.deleteControl = async function(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer ce contrôle ?')) return
 
-        const isConforme = ctrl.statut === '✔️'
-        const statusClass = isConforme ? 'status-conforme' : 'status-non-conforme'
-        const commentPreview = ctrl.commentaire 
-            ? (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0, 40) + '...' : ctrl.commentaire)
-            : ''
+            showSaveIndicator('saving')
+            try {
+                const { error } = await supabase
+                    .from('controles')
+                    .delete()
+                    .eq('id', id)
 
-        row.innerHTML = `
-            <td><strong>${ctrl.controle || 'Sans nom'}</strong></td>
-            <td>${ctrl.description || ''}</td>
-            <td>${ctrl.responsable || ''}</td>
-            <td>${ctrl.frequence || 'N/A'}</td>
-            <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut}</span></td>
-            <td onclick="updateDate('${ctrl.id}')" style="cursor: pointer;">${ctrl.date_verification || 'N/A'}</td>
-            <td>
-                <span class="comment-icon" onclick="openCommentModal('${ctrl.id}')">💬</span>
-                <span class="comment-preview">${commentPreview}</span>
-            </td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn btn-primary btn-sm" onclick="editControl('${ctrl.id}')">✏️</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteControl('${ctrl.id}')">🗑️</button>
-                </div>
-            </td>
-        `
-        tbody.appendChild(row)
-    })
-}
+                if (error) throw error
 
-// Appeler le chargement au démarrage
-loadData()
+                showSaveIndicator('saved')
+                await loadData()
+            } catch (err) {
+                console.error(err)
+                showSaveIndicator('error')
+                showError('Erreur lors de la suppression du contrôle')
+            }
+        }
+
+        // Supprimer un processus complet
+        window.deleteProcess = async function(processName) {
+            if (!confirm(`Êtes-vous sûr de vouloir supprimer le processus "${processName}" et tous ses contrôles ?`)) return
+
+            showSaveIndicator('saving')
+            try {
+                const { error } = await supabase
+                    .from('controles')
+                    .delete()
+                    .eq('processus', processName)
+
+                if (error) throw error
+
+                showSaveIndicator('saved')
+                await loadData()
+            } catch (err) {
+                console.error(err)
+                showSaveIndicator('error')
+                showError('Erreur lors de la suppression du processus')
+            }
+        }
+
+        // Mettre à jour les statistiques
+        function updateStats() {
+            const processusUniques = new Set(controles.map(c => c.processus)).size
+            const total = controles.length
+            const conformes = controles.filter(c => c.statut === '✔️').length
+            const nonConformes = controles.filter(c => c.statut === '❌').length
+            const taux = total > 0 ? Math.round((conformes / total) * 100) : 0
+
+            document.getElementById('totalProcessus').textContent = processusUniques
+            document.getElementById('totalControles').textContent = total
+            document.getElementById('conformes').textContent = conformes
+            document.getElementById('nonConformes').textContent = nonConformes
+            document.getElementById('tauxConformite').textContent = taux + '%'
+        }
+
+        // Mettre à jour les options de filtre
+        function updateFilterOptions() {
+            const select = document.getElementById('filterProcessus')
+            select.innerHTML = '<option value="">Tous les processus</option>'
+            
+            processus.forEach(proc => {
+                const option = document.createElement('option')
+                option.value = proc
+                option.textContent = proc
+                select.appendChild(option)
+            })
+        }
+
+        // Filtrer le tableau
+        window.filterTable = function() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase()
+            const processusFilter = document.getElementById('filterProcessus').value
+            const statutFilter = document.getElementById('filterStatut').value
+            
+            const rows = document.querySelectorAll('.control-row, .process-header')
+
+            let lastProcessVisible = null
+
+            rows.forEach(row => {
+                if (row.classList.contains('process-header')) {
+                    row.style.display = 'none'
+                    lastProcessVisible = row
+                    return
+                }
+
+                let showRow = true
+
+                // Filtre recherche
+                if (searchText) {
+                    const text = row.textContent.toLowerCase()
+                    if (!text.includes(searchText)) {
+                        showRow = false
+                    }
+                }
+
+                // Filtre processus
+                if (processusFilter && row.dataset.processus !== processusFilter) {
+                    showRow = false
+                }
+
+                // Filtre statut
+                if (statutFilter && row.dataset.statut !== statutFilter) {
+                    showRow = false
+                }
+
+                row.style.display = showRow ? '' : 'none'
+
+                // Afficher l'en-tête du processus si au moins une ligne est visible
+                if (showRow && lastProcessVisible && row.dataset.processus === lastProcessVisible.dataset.processus) {
+                    lastProcessVisible.style.display = ''
+                }
+            })
+        }
+
+        // Toggle statistiques
+        window.toggleStats = function() {
+            const stats = document.getElementById('statsSection')
+            stats.style.display = stats.style.display === 'none' ? 'grid' : 'none'
+        }
+
+        // Export Excel
+        window.exportToExcel = function() {
+            const table = document.getElementById('controlTable')
+            const wb = XLSX.utils.table_to_book(table, { sheet: "Contrôles" })
+            XLSX.writeFile(wb, `grille_controle_${new Date().toISOString().split('T')[0]}.xlsx`)
+        }
+
+        // Indicateur de sauvegarde
+        function showSaveIndicator(status) {
+            const indicator = document.getElementById('saveIndicator')
+            indicator.className = 'save-indicator ' + status
+            
+            if (status === 'saving') {
+                indicator.textContent = '⏳ Sauvegarde...'
+            } else if (status === 'saved') {
+                indicator.textContent = '✓ Sauvegardé'
+                setTimeout(() => { indicator.textContent = '' }, 2000)
+            } else if (status === 'error') {
+                indicator.textContent = '⚠ Erreur'
+                setTimeout(() => { indicator.textContent = '' }, 3000)
+            }
+        }
+
+        // Afficher erreur
+        function showError(message) {
+            const container = document.getElementById('errorContainer')
+            container.innerHTML = `<div class="error">${message}</div>`
+            setTimeout(() => { container.innerHTML = '' }, 5000)
+        }
+
+        // Fermer les modals en cliquant à l'extérieur
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none'
+            }
+        }
+
+        // Chargement initial
+        document.addEventListener('DOMContentLoaded', loadData)
+    </script>
+</body>
+</html></parameter>
