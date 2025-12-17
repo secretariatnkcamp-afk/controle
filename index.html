@@ -773,4 +773,168 @@
             }
         }
 
-        async function deleteProcess(processName)
+        async function deleteProcess(processName) {
+            if (!confirm(`Supprimer le processus "${processName}" et tous ses contrôles ?`)) return;
+            
+            try {
+                // Supprimer tous les contrôles de ce processus
+                const { error } = await supabase
+                    .from('controles')
+                    .delete()
+                    .eq('processus', processName);
+                
+                if (error) throw error;
+                
+                // Mettre à jour les données locales
+                controles = controles.filter(c => c.processus !== processName);
+                processus = processus.filter(p => p !== processName);
+                
+                renderTable();
+                updateStats();
+                updateFilterOptions();
+                showSaveIndicator('saved');
+                
+            } catch (error) {
+                showError('Erreur: ' + error.message);
+            }
+        }
+
+        // ===== FILTRES =====
+        function updateFilterOptions() {
+            const filterSelect = document.getElementById('filterProcessus');
+            filterSelect.innerHTML = '<option value="">Tous les processus</option>';
+            
+            processus.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p;
+                option.textContent = p;
+                filterSelect.appendChild(option);
+            });
+        }
+
+        function filterTable() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const processFilter = document.getElementById('filterProcessus').value;
+            const statusFilter = document.getElementById('filterStatut').value;
+            
+            const filtered = controles.filter(c => {
+                let match = true;
+                
+                if (processFilter) match = match && (c.processus === processFilter);
+                if (statusFilter) match = match && (c.statut === statusFilter);
+                
+                if (search) {
+                    const text = `${c.processus} ${c.controle} ${c.description} ${c.responsable} ${c.commentaire}`.toLowerCase();
+                    match = match && text.includes(search);
+                }
+                
+                return match;
+            });
+            
+            // Réafficher avec les données filtrées
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">Aucun contrôle correspondant aux filtres</td></tr>';
+            } else {
+                let currentProcess = null;
+                const sorted = [...filtered].sort((a, b) => (a.processus || '').localeCompare(b.processus || ''));
+                
+                for (const ctrl of sorted) {
+                    if (ctrl.processus !== currentProcess) {
+                        currentProcess = ctrl.processus;
+                        const headerRow = document.createElement('tr');
+                        headerRow.className = 'process-header';
+                        headerRow.innerHTML = `<td colspan="8"><strong>${escapeHtml(currentProcess)}</strong></td>`;
+                        tbody.appendChild(headerRow);
+                    }
+                    
+                    // [même code que renderTable mais juste pour les lignes]
+                    let statusClass = 'status-non-conforme';
+                    if (ctrl.statut === '✔️') statusClass = 'status-conforme';
+                    else if (ctrl.statut === '…') statusClass = 'status-attente';
+                    
+                    const commentPreview = ctrl.commentaire ? 
+                        (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0, 40) + '...' : ctrl.commentaire) : '';
+                    
+                    const row = document.createElement('tr');
+                    row.className = 'control-row';
+                    row.innerHTML = `
+                        <td><strong>${escapeHtml(ctrl.controle || '')}</strong></td>
+                        <td>${escapeHtml(ctrl.description || '')}</td>
+                        <td>${escapeHtml(ctrl.responsable || '')}</td>
+                        <td>${escapeHtml(ctrl.frequence || '')}</td>
+                        <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${escapeHtml(ctrl.statut || '')}</span></td>
+                        <td onclick="updateDate('${ctrl.id}')" style="cursor:pointer;">${escapeHtml(ctrl.date_verification || 'Cliquez pour date')}</td>
+                        <td>
+                            <span class="comment-icon" onclick="openCommentModal('${ctrl.id}')">💬</span>
+                            <span class="comment-preview">${escapeHtml(commentPreview)}</span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-primary btn-sm" onclick="editControl('${ctrl.id}')">✏️</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteControl('${ctrl.id}')">🗑️</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                }
+            }
+        }
+
+        // ===== STATISTIQUES =====
+        function updateStats() {
+            const totalProcessus = new Set(controles.map(c => c.processus)).size;
+            const totalControles = controles.length;
+            const conformes = controles.filter(c => c.statut === '✔️').length;
+            const nonConformes = controles.filter(c => c.statut === '❌').length;
+            const taux = totalControles > 0 ? Math.round((conformes / totalControles) * 100) : 0;
+            
+            document.getElementById('totalProcessus').textContent = totalProcessus;
+            document.getElementById('totalControles').textContent = totalControles;
+            document.getElementById('conformes').textContent = conformes;
+            document.getElementById('nonConformes').textContent = nonConformes;
+            document.getElementById('tauxConformite').textContent = taux + '%';
+        }
+
+        function toggleStats() {
+            const stats = document.getElementById('statsSection');
+            stats.style.display = stats.style.display === 'none' ? 'grid' : 'none';
+        }
+
+        // ===== EXPORT EXCEL =====
+        function exportToExcel() {
+            if (controles.length === 0) return showError('Aucune donnée à exporter');
+            
+            const data = controles.map(c => ({
+                Processus: c.processus,
+                Contrôle: c.controle,
+                Description: c.description,
+                Responsable: c.responsable,
+                Fréquence: c.frequence,
+                Statut: c.statut,
+                'Date Vérification': c.date_verification,
+                Commentaire: c.commentaire
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Contrôles');
+            XLSX.writeFile(wb, 'grille-controles.xlsx');
+        }
+
+        // ===== GESTION MODALES =====
+        window.onclick = function(event) {
+            const modals = ['addControlModal', 'addProcessModal', 'commentModal'];
+            modals.forEach(id => {
+                const modal = document.getElementById(id);
+                if (event.target === modal) modal.style.display = 'none';
+            });
+        }
+
+        // ===== DÉMARRAGE =====
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
