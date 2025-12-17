@@ -1,211 +1,127 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>Contrôles Supabase</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <style>
-        .process-header { background: #f0f0f0; font-weight: bold; }
-        .process-conforme { color: green; margin-left: 10px; }
-        .process-non-conforme { color: red; margin-left: 10px; }
-        .status-conforme { color: green; cursor: pointer; }
-        .status-non-conforme { color: red; cursor: pointer; }
-        .comment-icon { cursor: pointer; margin-right: 5px; }
-        .action-buttons button { margin-right: 5px; }
-        #loadingIndicator { display: none; }
-        #emptyState { display: none; margin-top: 20px; color: gray; }
-        table { width: 100%; margin-top: 20px; }
-    </style>
-</head>
-<body class="p-4">
+// Chargement initial
+async function loadData() {
+    document.getElementById('loadingIndicator').style.display = 'block'
+    document.getElementById('emptyState').style.display = 'none'
+    document.getElementById('controlTable').style.display = 'none'
 
-    <h1>Liste des contrôles</h1>
+    try {
+        const { data, error } = await supabase
+            .from('controles')
+            .select('*')
+            .order('processus', { ascending: true }) // tri principal
+            .order('ordre', { ascending: true })    // tri secondaire
 
-    <div id="loadingIndicator">Chargement en cours...</div>
-    <div id="emptyState">Aucun contrôle disponible.</div>
+        if (error) throw error
 
-    <label for="filterProcessus">Filtrer par processus :</label>
-    <select id="filterProcessus" class="form-select" style="width: 300px; margin-bottom: 10px;">
-        <option value="">Tous les processus</option>
-    </select>
+        controles = data || []
+        extractProcessus()        // Mettre à jour la liste des processus
+        renderTable()             // Afficher le tableau
+        updateStats()             // Mettre à jour les statistiques
+        updateFilterOptions()     // Mettre à jour les filtres
 
-    <table id="controlTable" class="table table-bordered" style="display: none;">
-        <thead class="table-light">
-            <tr>
-                <th>Contrôle</th>
-                <th>Description</th>
-                <th>Responsable</th>
-                <th>Fréquence</th>
-                <th>Statut</th>
-                <th>Date de vérification</th>
-                <th>Commentaire</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-    </table>
+        document.getElementById('loadingIndicator').style.display = 'none'
 
-    <!-- Modal pour commentaire (optionnel, à implémenter) -->
-    <div id="commentModal" class="modal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Commentaire</h5>
-                    <button type="button" class="btn-close" onclick="closeCommentModal()"></button>
+        if (controles.length === 0) {
+            document.getElementById('emptyState').style.display = 'block'
+        } else {
+            document.getElementById('controlTable').style.display = 'table'
+        }
+
+    } catch (err) {
+        console.error(err)
+        showError('Impossible de charger les données. Vérifiez la connexion Supabase.')
+        document.getElementById('loadingIndicator').style.display = 'none'
+    }
+}
+
+// Extraire la liste des processus uniques
+function extractProcessus() {
+    const processusSet = new Set()
+    controles.forEach(ctrl => {
+        if (ctrl.processus) {
+            processusSet.add(ctrl.processus)
+        }
+    })
+    processus = Array.from(processusSet)
+}
+
+// Mettre à jour les filtres des processus
+function updateFilterOptions() {
+    const select = document.getElementById('filterProcessus')
+    select.innerHTML = '<option value="">Tous les processus</option>'
+    processus.forEach(proc => {
+        const option = document.createElement('option')
+        option.value = proc
+        option.textContent = proc
+        select.appendChild(option)
+    })
+}
+
+// Rendu du tableau
+function renderTable() {
+    const tbody = document.getElementById('tableBody')
+    tbody.innerHTML = ''
+
+    if (controles.length === 0) return
+
+    let currentProcess = ''
+    controles.forEach(ctrl => {
+        // Ligne d'entête pour chaque processus
+        if (ctrl.processus !== currentProcess) {
+            currentProcess = ctrl.processus
+            const processControls = controles.filter(c => c.processus === currentProcess)
+            const conformeCount = processControls.filter(c => c.statut === '✔️').length
+            const totalCount = processControls.length
+            const allConforme = conformeCount === totalCount && totalCount > 0
+            const statusClass = allConforme ? 'process-conforme' : 'process-non-conforme'
+            const statusText = allConforme ? '✔️ Processus Conforme' : '❌ Processus Non Conforme'
+
+            const headerRow = document.createElement('tr')
+            headerRow.className = 'process-header'
+            headerRow.innerHTML = `
+                <td colspan="8">
+                    <strong>${currentProcess}</strong> - Responsable: ${ctrl.responsable || 'Non défini'}
+                    <span class="process-status ${statusClass}">${statusText}</span>
+                    <button class="btn btn-danger btn-sm" style="float: right;" onclick="deleteProcess('${currentProcess}')">🗑️ Supprimer processus</button>
+                </td>
+            `
+            tbody.appendChild(headerRow)
+        }
+
+        // Ligne de contrôle
+        const row = document.createElement('tr')
+        row.className = 'control-row'
+        row.dataset.id = ctrl.id
+        row.dataset.processus = ctrl.processus
+        row.dataset.statut = ctrl.statut
+
+        const isConforme = ctrl.statut === '✔️'
+        const statusClass = isConforme ? 'status-conforme' : 'status-non-conforme'
+        const commentPreview = ctrl.commentaire 
+            ? (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0, 40) + '...' : ctrl.commentaire)
+            : ''
+
+        row.innerHTML = `
+            <td><strong>${ctrl.controle || 'Sans nom'}</strong></td>
+            <td>${ctrl.description || ''}</td>
+            <td>${ctrl.responsable || ''}</td>
+            <td>${ctrl.frequence || 'N/A'}</td>
+            <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut}</span></td>
+            <td onclick="updateDate('${ctrl.id}')" style="cursor: pointer;">${ctrl.date_verification || 'N/A'}</td>
+            <td>
+                <span class="comment-icon" onclick="openCommentModal('${ctrl.id}')">💬</span>
+                <span class="comment-preview">${commentPreview}</span>
+            </td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn btn-primary btn-sm" onclick="editControl('${ctrl.id}')">✏️</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteControl('${ctrl.id}')">🗑️</button>
                 </div>
-                <div class="modal-body">
-                    <textarea id="commentText" class="form-control" rows="5"></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeCommentModal()">Fermer</button>
-                    <button class="btn btn-primary" onclick="saveComment()">Enregistrer</button>
-                </div>
-            </div>
-        </div>
-    </div>
+            </td>
+        `
+        tbody.appendChild(row)
+    })
+}
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.26.0/dist/supabase.min.js"></script>
-    <script>
-        // Initialisation Supabase
-        const supabaseUrl = 'https://VOTRE_URL.supabase.co'
-        const supabaseKey = 'VOTRE_ANON_KEY'
-        const supabase = supabase.createClient(supabaseUrl, supabaseKey)
-
-        let controles = []
-        let processus = []
-
-        // Copier ici ton code JavaScript complet
-        // Chargement initial
-        async function loadData() {
-            document.getElementById('loadingIndicator').style.display = 'block'
-            document.getElementById('emptyState').style.display = 'none'
-            document.getElementById('controlTable').style.display = 'none'
-
-            try {
-                const { data, error } = await supabase
-                    .from('controles')
-                    .select('*')
-                    .order('processus', { ascending: true })
-                    .order('ordre', { ascending: true })
-
-                if (error) throw error
-
-                controles = data || []
-                extractProcessus()
-                renderTable()
-                updateStats()
-                updateFilterOptions()
-
-                document.getElementById('loadingIndicator').style.display = 'none'
-
-                if (controles.length === 0) {
-                    document.getElementById('emptyState').style.display = 'block'
-                } else {
-                    document.getElementById('controlTable').style.display = 'table'
-                }
-
-            } catch (err) {
-                console.error(err)
-                alert('Impossible de charger les données. Vérifiez la connexion Supabase.')
-                document.getElementById('loadingIndicator').style.display = 'none'
-            }
-        }
-
-        function extractProcessus() {
-            const processusSet = new Set()
-            controles.forEach(ctrl => {
-                if (ctrl.processus) processusSet.add(ctrl.processus)
-            })
-            processus = Array.from(processusSet)
-        }
-
-        function updateFilterOptions() {
-            const select = document.getElementById('filterProcessus')
-            select.innerHTML = '<option value="">Tous les processus</option>'
-            processus.forEach(proc => {
-                const option = document.createElement('option')
-                option.value = proc
-                option.textContent = proc
-                select.appendChild(option)
-            })
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('tableBody')
-            tbody.innerHTML = ''
-            if (controles.length === 0) return
-
-            let currentProcess = ''
-            controles.forEach(ctrl => {
-                if (ctrl.processus !== currentProcess) {
-                    currentProcess = ctrl.processus
-                    const processControls = controles.filter(c => c.processus === currentProcess)
-                    const conformeCount = processControls.filter(c => c.statut === '✔️').length
-                    const totalCount = processControls.length
-                    const allConforme = conformeCount === totalCount && totalCount > 0
-                    const statusClass = allConforme ? 'process-conforme' : 'process-non-conforme'
-                    const statusText = allConforme ? '✔️ Processus Conforme' : '❌ Processus Non Conforme'
-
-                    const headerRow = document.createElement('tr')
-                    headerRow.className = 'process-header'
-                    headerRow.innerHTML = `
-                        <td colspan="8">
-                            <strong>${currentProcess}</strong> - Responsable: ${ctrl.responsable || 'Non défini'}
-                            <span class="process-status ${statusClass}">${statusText}</span>
-                            <button class="btn btn-danger btn-sm" style="float: right;" onclick="deleteProcess('${currentProcess}')">🗑️ Supprimer processus</button>
-                        </td>
-                    `
-                    tbody.appendChild(headerRow)
-                }
-
-                const row = document.createElement('tr')
-                row.className = 'control-row'
-                row.dataset.id = ctrl.id
-                row.dataset.processus = ctrl.processus
-                row.dataset.statut = ctrl.statut
-
-                const isConforme = ctrl.statut === '✔️'
-                const statusClass = isConforme ? 'status-conforme' : 'status-non-conforme'
-                const commentPreview = ctrl.commentaire 
-                    ? (ctrl.commentaire.length > 40 ? ctrl.commentaire.substring(0, 40) + '...' : ctrl.commentaire)
-                    : ''
-
-                row.innerHTML = `
-                    <td><strong>${ctrl.controle || 'Sans nom'}</strong></td>
-                    <td>${ctrl.description || ''}</td>
-                    <td>${ctrl.responsable || ''}</td>
-                    <td>${ctrl.frequence || 'N/A'}</td>
-                    <td><span class="status-badge ${statusClass}" onclick="toggleStatus('${ctrl.id}')">${ctrl.statut}</span></td>
-                    <td onclick="updateDate('${ctrl.id}')" style="cursor: pointer;">${ctrl.date_verification || 'N/A'}</td>
-                    <td>
-                        <span class="comment-icon" onclick="openCommentModal('${ctrl.id}')">💬</span>
-                        <span class="comment-preview">${commentPreview}</span>
-                    </td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-primary btn-sm" onclick="editControl('${ctrl.id}')">✏️</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteControl('${ctrl.id}')">🗑️</button>
-                        </div>
-                    </td>
-                `
-                tbody.appendChild(row)
-            })
-        }
-
-        // Fonctions vides pour compléter le fonctionnement
-        function updateStats() {}
-        function toggleStatus(id) { alert("Toggle statut: " + id) }
-        function updateDate(id) { alert("Mettre à jour la date: " + id) }
-        function openCommentModal(id) { alert("Ouvrir commentaire: " + id) }
-        function closeCommentModal() {}
-        function saveComment() {}
-        function editControl(id) { alert("Éditer contrôle: " + id) }
-        function deleteControl(id) { alert("Supprimer contrôle: " + id) }
-        function deleteProcess(proc) { alert("Supprimer processus: " + proc) }
-
-        // Appel au chargement initial
-        loadData()
-    </script>
-
-</body>
-</html>
+// Appeler le chargement au démarrage
+loadData()
