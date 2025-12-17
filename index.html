@@ -1,226 +1,686 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Grille Contrôle</title>
+    <title>Grille Contrôle Opérationnel - COMPLET</title>
     <style>
-        body { font-family: Arial; padding: 20px; }
-        button { padding: 10px 20px; margin: 5px; background: #4CAF50; color: white; border: none; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
-        th { background: #4CAF50; color: white; }
-        .statut { cursor: pointer; padding: 5px; border-radius: 3px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5568d3; transform: translateY(-2px); }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: #000; }
+        .btn-danger { background: #dc3545; color: white; }
+        
+        .message {
+            padding: 15px;
+            margin: 15px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        
+        .table-container {
+            padding: 30px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        th { font-weight: 600; }
+        tbody tr:hover { background: #f8f9fa; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            min-width: 60px;
+            text-align: center;
+        }
+        .status-conforme { background: #d4edda; color: #155724; }
+        .status-non-conforme { background: #f8d7da; color: #721c24; }
+        .status-attente { background: #fff3cd; color: #856404; }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        .close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+            color: #aaa;
+        }
+        .close:hover { color: #000; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        .form-group textarea { min-height: 100px; resize: vertical; }
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
     </style>
 </head>
 <body>
-    <h1>📊 Grille de Contrôle</h1>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Grille de Contrôle Opérationnel</h1>
+            <p>Système de gestion et de suivi des contrôles internes</p>
+        </div>
+        
+        <div id="message" class="message info">Prêt à utiliser</div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="chargerDonnees()">
+                🔄 Charger données
+            </button>
+            <button class="btn btn-success" onclick="ouvrirModalAjout()">
+                ➕ Nouveau contrôle
+            </button>
+            <button class="btn btn-warning" onclick="ajouterDonneesExemple()">
+                📝 Données exemple
+            </button>
+            <button class="btn btn-danger" onclick="viderTable()">
+                🗑️ Vider table
+            </button>
+        </div>
+        
+        <div class="table-container">
+            <table id="tableControles">
+                <thead>
+                    <tr>
+                        <th>Processus</th>
+                        <th>Contrôle</th>
+                        <th>Description</th>
+                        <th>Responsable</th>
+                        <th>Fréquence</th>
+                        <th>Statut</th>
+                        <th>Date vérif.</th>
+                        <th>Commentaire</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyControles">
+                    <!-- Les données seront insérées ici -->
+                </tbody>
+            </table>
+        </div>
+    </div>
     
-    <button onclick="charger()">🔄 CHARGER</button>
-    <button onclick="ajouter()">➕ AJOUTER</button>
-    <button onclick="supprimer()">🗑️ SUPPRIMER</button>
+    <!-- Modal pour ajouter/modifier -->
+    <div id="modalAjout" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="fermerModal()">&times;</span>
+            <div class="modal-header" id="modalTitre">➕ Nouveau Contrôle</div>
+            
+            <div class="form-group">
+                <label>Processus *</label>
+                <input type="text" id="inputProcessus" placeholder="Ex: Cycle Achats-Fournisseurs">
+            </div>
+            
+            <div class="form-group">
+                <label>Nom du contrôle *</label>
+                <input type="text" id="inputControle" placeholder="Ex: Émission Bon de Commande">
+            </div>
+            
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="inputDescription" placeholder="Description détaillée..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Responsable *</label>
+                <input type="text" id="inputResponsable" placeholder="Ex: Sophie Martin">
+            </div>
+            
+            <div class="form-group">
+                <label>Fréquence *</label>
+                <select id="inputFrequence">
+                    <option value="Quotidien">Quotidien</option>
+                    <option value="Hebdomadaire">Hebdomadaire</option>
+                    <option value="Mensuel" selected>Mensuel</option>
+                    <option value="Trimestriel">Trimestriel</option>
+                    <option value="Annuel">Annuel</option>
+                    <option value="Systématique">Systématique</option>
+                </select>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn" onclick="fermerModal()" style="background:#6c757d; color:white;">
+                    Annuler
+                </button>
+                <button class="btn btn-primary" onclick="sauvegarderControle()">
+                    Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
     
-    <div id="message" style="margin: 10px 0; padding: 10px;"></div>
-    
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Processus</th>
-                <th>Contrôle</th>
-                <th>Responsable</th>
-                <th>Statut</th>
-            </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-    </table>
+    <!-- Modal commentaire -->
+    <div id="modalCommentaire" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="fermerModalCommentaire()">&times;</span>
+            <div class="modal-header">💬 Commentaire</div>
+            
+            <div class="form-group">
+                <textarea id="inputCommentaire" placeholder="Entrez votre commentaire..."></textarea>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn" onclick="fermerModalCommentaire()" style="background:#6c757d; color:white;">
+                    Annuler
+                </button>
+                <button class="btn btn-primary" onclick="sauvegarderCommentaire()">
+                    Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // VARIABLES GLOBALES
-        let mesDonnees = [];
+        // === CONFIGURATION SUPABASE ===
+        const URL_SUPABASE = 'https://bcwbyugpjlwrpvbbgajg.supabase.co';
+        const CLE_SUPABASE = 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60';
         
-        // FONCTION CHARGER
-        async function charger() {
-            console.log("CHARGEMENT...");
-            document.getElementById('message').innerHTML = "Chargement...";
-            document.getElementById('message').style.background = "#ffffcc";
+        // === VARIABLES GLOBALES ===
+        let controles = [];
+        let controleActuel = null;
+        let commentaireActuel = null;
+        
+        // === FONCTIONS UTILITAIRES ===
+        function afficherMessage(texte, type = 'info') {
+            const msg = document.getElementById('message');
+            msg.textContent = texte;
+            msg.className = `message ${type}`;
+        }
+        
+        function getHeaders() {
+            return {
+                'apikey': CLE_SUPABASE,
+                'Authorization': `Bearer ${CLE_SUPABASE}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            };
+        }
+        
+        // === CHARGEMENT DES DONNÉES ===
+        async function chargerDonnees() {
+            afficherMessage('Chargement des données...', 'info');
             
             try {
-                // Appel DIRECT à l'API Supabase sans bibliothèque
-                const response = await fetch(
-                    'https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles?select=*',
-                    {
-                        headers: {
-                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
-                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
-                        }
-                    }
-                );
+                const response = await fetch(`${URL_SUPABASE}/rest/v1/controles?select=*&order=processus.asc`, {
+                    headers: getHeaders()
+                });
                 
-                const data = await response.json();
-                console.log("DONNEES RECUES:", data);
-                mesDonnees = data;
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                }
                 
-                // Afficher
-                afficher(data);
-                document.getElementById('message').innerHTML = data.length + " contrôle(s) chargé(s)";
-                document.getElementById('message').style.background = "#d4edda";
+                controles = await response.json();
+                console.log('Données chargées:', controles);
+                
+                afficherTableau();
+                
+                if (controles.length === 0) {
+                    afficherMessage('Table vide. Ajoutez des données!', 'info');
+                } else {
+                    afficherMessage(`${controles.length} contrôle(s) chargé(s)`, 'success');
+                }
                 
             } catch (error) {
-                console.error("ERREUR:", error);
-                document.getElementById('message').innerHTML = "Erreur: " + error.message;
-                document.getElementById('message').style.background = "#f8d7da";
+                console.error('Erreur:', error);
+                afficherMessage('Erreur: ' + error.message, 'error');
             }
         }
         
-        // FONCTION AFFICHER
-        function afficher(donnees) {
-            const tbody = document.getElementById('tbody');
+        // === AFFICHAGE DU TABLEAU ===
+        function afficherTableau() {
+            const tbody = document.getElementById('tbodyControles');
             tbody.innerHTML = '';
             
-            donnees.forEach(item => {
+            controles.forEach(controle => {
                 const tr = document.createElement('tr');
                 
-                // Couleur selon statut
-                let couleur = "#f8d7da"; // rouge
-                if (item.statut === '✔️') couleur = "#d4edda"; // vert
-                else if (item.statut === '…') couleur = "#fff3cd"; // orange
+                // Classe CSS pour le statut
+                let classeStatut = 'status-non-conforme';
+                if (controle.statut === '✔️') classeStatut = 'status-conforme';
+                else if (controle.statut === '…') classeStatut = 'status-attente';
+                
+                // Prévisualisation commentaire
+                const commentPreview = controle.commentaire ? 
+                    (controle.commentaire.length > 50 ? 
+                     controle.commentaire.substring(0, 50) + '...' : 
+                     controle.commentaire) : '';
                 
                 tr.innerHTML = `
-                    <td>${item.processus || ''}</td>
-                    <td><strong>${item.controle || ''}</strong></td>
-                    <td>${item.responsable || ''}</td>
-                    <td class="statut" style="background:${couleur}" onclick="changerStatut('${item.id}')">
-                        ${item.statut || '❌'}
+                    <td><strong>${controle.processus || ''}</strong></td>
+                    <td>${controle.controle || ''}</td>
+                    <td>${controle.description || ''}</td>
+                    <td>${controle.responsable || ''}</td>
+                    <td>${controle.frequence || ''}</td>
+                    <td>
+                        <span class="status-badge ${classeStatut}" onclick="changerStatut('${controle.id}')">
+                            ${controle.statut || '❌'}
+                        </span>
+                    </td>
+                    <td onclick="mettreAJourDate('${controle.id}')" style="cursor:pointer;">
+                        ${controle.date_verification || 'Cliquer'}
+                    </td>
+                    <td onclick="ouvrirModalCommentaire('${controle.id}')" style="cursor:pointer;">
+                        ${commentPreview || '💬 Ajouter'}
+                    </td>
+                    <td>
+                        <button class="btn btn-primary small" onclick="modifierControle('${controle.id}')">
+                            ✏️
+                        </button>
+                        <button class="btn btn-danger small" onclick="supprimerControle('${controle.id}')">
+                            🗑️
+                        </button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
         
-        // FONCTION CHANGER STATUT
-        async function changerStatut(id) {
-            console.log("Changer statut pour:", id);
+        // === AJOUT DE DONNÉES EXEMPLE ===
+        async function ajouterDonneesExemple() {
+            if (!confirm('Ajouter des données d\'exemple ?')) return;
             
-            const item = mesDonnees.find(d => d.id === id);
-            if (!item) return;
-            
-            // Nouveau statut
-            let nouveauStatut = '❌';
-            if (item.statut === '❌' || !item.statut) nouveauStatut = '…';
-            else if (item.statut === '…') nouveauStatut = '✔️';
+            const donneesExemple = [
+                {
+                    id: 'ex1-' + Date.now(),
+                    processus: 'Cycle Achats-Fournisseurs',
+                    controle: 'Émission Bon de Commande',
+                    description: 'Vérifier validation selon seuils d\'autorisation',
+                    responsable: 'Sophie Martin',
+                    frequence: 'Systématique',
+                    statut: '✔️',
+                    commentaire: 'Procédure bien respectée',
+                    date_verification: '2024-01-15'
+                },
+                {
+                    id: 'ex2-' + Date.now(),
+                    processus: 'Cycle Achats-Fournisseurs',
+                    controle: 'Réception marchandises',
+                    description: 'Contrôle qualité à la réception',
+                    responsable: 'Pierre Dubois',
+                    frequence: 'Quotidien',
+                    statut: '❌',
+                    commentaire: 'Manque de personnel qualifié',
+                    date_verification: '2024-01-10'
+                },
+                {
+                    id: 'ex3-' + Date.now(),
+                    processus: 'Cycle Ventes-Clients',
+                    controle: 'Facturation',
+                    description: 'Vérifier concordance livraison/facturation',
+                    responsable: 'Marie Laurent',
+                    frequence: 'Hebdomadaire',
+                    statut: '…',
+                    commentaire: 'En cours d\'analyse des écarts',
+                    date_verification: '2024-01-12'
+                },
+                {
+                    id: 'ex4-' + Date.now(),
+                    processus: 'Cycle Trésorerie',
+                    controle: 'Réconciliation bancaire',
+                    description: 'Pointage des relevés bancaires',
+                    responsable: 'Jean Dupont',
+                    frequence: 'Mensuel',
+                    statut: '✔️',
+                    commentaire: 'Pas d\'écart significatif',
+                    date_verification: '2024-01-05'
+                }
+            ];
             
             try {
-                // Mettre à jour via API
-                const response = await fetch(
-                    `https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles?id=eq.${id}`,
-                    {
-                        method: 'PATCH',
-                        headers: {
-                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
-                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
-                            'Content-Type': 'application/json',
-                            'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify({ statut: nouveauStatut })
+                for (const donnee of donneesExemple) {
+                    const response = await fetch(`${URL_SUPABASE}/rest/v1/controles`, {
+                        method: 'POST',
+                        headers: getHeaders(),
+                        body: JSON.stringify([donnee])
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Erreur ${response.status}`);
                     }
-                );
-                
-                if (response.ok) {
-                    // Recharger
-                    await charger();
-                    document.getElementById('message').innerHTML = "Statut mis à jour!";
-                    document.getElementById('message').style.background = "#d4edda";
                 }
                 
+                afficherMessage('4 contrôles d\'exemple ajoutés!', 'success');
+                await chargerDonnees();
+                
             } catch (error) {
-                console.error("Erreur:", error);
-                document.getElementById('message').innerHTML = "Erreur: " + error.message;
-                document.getElementById('message').style.background = "#f8d7da";
+                afficherMessage('Erreur: ' + error.message, 'error');
             }
         }
         
-        // FONCTION AJOUTER
-        async function ajouter() {
-            const processus = prompt("Nom du processus:");
-            if (!processus) return;
-            
-            const controle = prompt("Nom du contrôle:");
+        // === GESTION DES CONTROLES ===
+        async function changerStatut(id) {
+            const controle = controles.find(c => c.id === id);
             if (!controle) return;
             
-            const responsable = prompt("Responsable:");
-            if (!responsable) return;
+            // Cycle: ❌ → … → ✔️ → ❌
+            let nouveauStatut = '❌';
+            if (controle.statut === '❌' || !controle.statut) nouveauStatut = '…';
+            else if (controle.statut === '…') nouveauStatut = '✔️';
             
-            const nouveau = {
-                id: 'ctrl-' + Date.now(),
+            try {
+                const response = await fetch(`${URL_SUPABASE}/rest/v1/controles?id=eq.${id}`, {
+                    method: 'PATCH',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ statut: nouveauStatut })
+                });
+                
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                
+                afficherMessage('Statut mis à jour', 'success');
+                await chargerDonnees();
+                
+            } catch (error) {
+                afficherMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        async function mettreAJourDate(id) {
+            const today = new Date().toISOString().split('T')[0];
+            
+            try {
+                const response = await fetch(`${URL_SUPABASE}/rest/v1/controles?id=eq.${id}`, {
+                    method: 'PATCH',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ date_verification: today })
+                });
+                
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                
+                afficherMessage('Date mise à jour', 'success');
+                await chargerDonnees();
+                
+            } catch (error) {
+                afficherMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        async function supprimerControle(id) {
+            if (!confirm('Voulez-vous vraiment supprimer ce contrôle ?')) return;
+            
+            try {
+                const response = await fetch(`${URL_SUPABASE}/rest/v1/controles?id=eq.${id}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                
+                afficherMessage('Contrôle supprimé', 'success');
+                await chargerDonnees();
+                
+            } catch (error) {
+                afficherMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        // === MODALES ===
+        function ouvrirModalAjout() {
+            controleActuel = null;
+            document.getElementById('modalTitre').textContent = '➕ Nouveau Contrôle';
+            document.getElementById('inputProcessus').value = '';
+            document.getElementById('inputControle').value = '';
+            document.getElementById('inputDescription').value = '';
+            document.getElementById('inputResponsable').value = '';
+            document.getElementById('inputFrequence').value = 'Mensuel';
+            document.getElementById('modalAjout').style.display = 'block';
+        }
+        
+        function modifierControle(id) {
+            const controle = controles.find(c => c.id === id);
+            if (!controle) return;
+            
+            controleActuel = controle;
+            document.getElementById('modalTitre').textContent = '✏️ Modifier Contrôle';
+            document.getElementById('inputProcessus').value = controle.processus || '';
+            document.getElementById('inputControle').value = controle.controle || '';
+            document.getElementById('inputDescription').value = controle.description || '';
+            document.getElementById('inputResponsable').value = controle.responsable || '';
+            document.getElementById('inputFrequence').value = controle.frequence || 'Mensuel';
+            document.getElementById('modalAjout').style.display = 'block';
+        }
+        
+        async function sauvegarderControle() {
+            const processus = document.getElementById('inputProcessus').value.trim();
+            const controle = document.getElementById('inputControle').value.trim();
+            const responsable = document.getElementById('inputResponsable').value.trim();
+            
+            if (!processus || !controle || !responsable) {
+                return afficherMessage('Remplissez les champs obligatoires', 'error');
+            }
+            
+            const donneeControle = {
                 processus: processus,
                 controle: controle,
+                description: document.getElementById('inputDescription').value.trim(),
                 responsable: responsable,
-                statut: '❌',
-                frequence: 'Mensuel'
+                frequence: document.getElementById('inputFrequence').value,
+                statut: '❌'
             };
             
             try {
-                const response = await fetch(
-                    'https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
-                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
-                            'Content-Type': 'application/json',
-                            'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify([nouveau])
-                    }
-                );
+                let response;
                 
-                if (response.ok) {
-                    await charger();
-                    document.getElementById('message').innerHTML = "Contrôle ajouté!";
-                    document.getElementById('message').style.background = "#d4edda";
+                if (controleActuel) {
+                    // Mise à jour
+                    response = await fetch(`${URL_SUPABASE}/rest/v1/controles?id=eq.${controleActuel.id}`, {
+                        method: 'PATCH',
+                        headers: getHeaders(),
+                        body: JSON.stringify(donneeControle)
+                    });
+                } else {
+                    // Nouveau
+                    donneeControle.id = 'ctrl-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+                    response = await fetch(`${URL_SUPABASE}/rest/v1/controles`, {
+                        method: 'POST',
+                        headers: getHeaders(),
+                        body: JSON.stringify([donneeControle])
+                    });
                 }
                 
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                
+                fermerModal();
+                afficherMessage(
+                    controleActuel ? 'Contrôle modifié' : 'Contrôle ajouté', 
+                    'success'
+                );
+                await chargerDonnees();
+                
             } catch (error) {
-                console.error("Erreur:", error);
-                document.getElementById('message').innerHTML = "Erreur: " + error.message;
-                document.getElementById('message').style.background = "#f8d7da";
+                afficherMessage('Erreur: ' + error.message, 'error');
             }
         }
         
-        // FONCTION SUPPRIMER
-        async function supprimer() {
-            const id = prompt("ID du contrôle à supprimer (regardez dans la console):");
-            if (!id) return;
+        // Commentaires
+        function ouvrirModalCommentaire(id) {
+            commentaireActuel = id;
+            const controle = controles.find(c => c.id === id);
+            document.getElementById('inputCommentaire').value = controle?.commentaire || '';
+            document.getElementById('modalCommentaire').style.display = 'block';
+        }
+        
+        async function sauvegarderCommentaire() {
+            if (!commentaireActuel) return;
             
-            if (!confirm("Vraiment supprimer le contrôle " + id + " ?")) return;
+            const commentaire = document.getElementById('inputCommentaire').value;
             
             try {
-                const response = await fetch(
-                    `https://bcwbyugpjlwrpvbbgajg.supabase.co/rest/v1/controles?id=eq.${id}`,
-                    {
-                        method: 'DELETE',
-                        headers: {
-                            'apikey': 'sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60',
-                            'Authorization': 'Bearer sb_publishable_mTp8gGCiA3fd8W83gWSb5w_3OjJMU60'
-                        }
-                    }
-                );
+                const response = await fetch(`${URL_SUPABASE}/rest/v1/controles?id=eq.${commentaireActuel}`, {
+                    method: 'PATCH',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ commentaire: commentaire })
+                });
                 
-                if (response.ok) {
-                    await charger();
-                    document.getElementById('message').innerHTML = "Contrôle supprimé!";
-                    document.getElementById('message').style.background = "#d4edda";
-                }
+                if (!response.ok) throw new Error(`Erreur ${response.status}`);
+                
+                fermerModalCommentaire();
+                afficherMessage('Commentaire enregistré', 'success');
+                await chargerDonnees();
                 
             } catch (error) {
-                console.error("Erreur:", error);
-                document.getElementById('message').innerHTML = "Erreur: " + error.message;
-                document.getElementById('message').style.background = "#f8d7da";
+                afficherMessage('Erreur: ' + error.message, 'error');
             }
         }
         
-        // Charger au démarrage
+        function fermerModal() {
+            document.getElementById('modalAjout').style.display = 'none';
+            controleActuel = null;
+        }
+        
+        function fermerModalCommentaire() {
+            document.getElementById('modalCommentaire').style.display = 'none';
+            commentaireActuel = null;
+        }
+        
+        // Vider table
+        async function viderTable() {
+            if (!confirm('Vider TOUTE la table ? Cette action est irréversible!')) return;
+            
+            try {
+                // Récupérer tous les IDs
+                const response = await fetch(`${URL_SUPABASE}/rest/v1/controles?select=id`, {
+                    headers: getHeaders()
+                });
+                
+                const ids = await response.json();
+                
+                if (ids.length === 0) {
+                    return afficherMessage('Table déjà vide', 'info');
+                }
+                
+                // Supprimer tous (méthode simple)
+                for (const item of ids) {
+                    await fetch(`${URL_SUPABASE}/rest/v1/controles?id=eq.${item.id}`, {
+                        method: 'DELETE',
+                        headers: getHeaders()
+                    });
+                }
+                
+                afficherMessage('Table vidée', 'success');
+                await chargerDonnees();
+                
+            } catch (error) {
+                afficherMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        // Fermer modales en cliquant dehors
+        window.onclick = function(event) {
+            if (event.target.className === 'modal') {
+                event.target.style.display = 'none';
+                if (event.target.id === 'modalAjout') controleActuel = null;
+                if (event.target.id === 'modalCommentaire') commentaireActuel = null;
+            }
+        };
+        
+        // === INITIALISATION ===
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("Page prête!");
-            // charger(); // Décommentez pour charger automatiquement
+            console.log('Application initialisée');
+            // Option: charger automatiquement
+            // chargerDonnees();
         });
     </script>
 </body>
